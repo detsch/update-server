@@ -23,6 +23,7 @@ var showRolloutCmd = &cobra.Command{
 }
 
 func init() {
+	showRolloutCmd.Flags().BoolVar(&showDevices, "show-devices", false, "Print the device UUIDs in the rollout summary")
 	UpdatesCmd.AddCommand(showRolloutCmd)
 }
 
@@ -34,6 +35,29 @@ func showRollout(updates api.UpdatesApi, tag, updateName, rollout string) {
 	fmt.Printf("Update: %s\n", updateName)
 	fmt.Printf("Tag: %s\n", tag)
 	fmt.Printf("Committed: %v\n\n", rolloutData.Commit)
+
+	summary, err := updates.GetRolloutSummary(tag, updateName, rollout)
+	if err != nil {
+		fmt.Printf("Error fetching rollout report: %v\n", err)
+		return
+	}
+	fmt.Println("Summary:")
+	for status, count := range summary.Status {
+		fmt.Printf("  %s: %d\n", status, count)
+		if showDevices {
+			fmt.Printf("    looking up devices ...")
+			devices, err := updates.GetDevicesForRolloutStatus(tag, updateName, rollout, status)
+			if err != nil {
+				fmt.Printf("\rError fetching devices for status %s: %v\n", status, err)
+			} else {
+				fmt.Printf("\r")
+				for _, device := range devices {
+					fmt.Printf("    %s\n", device)
+				}
+			}
+		}
+	}
+	fmt.Println()
 
 	if len(rolloutData.Groups) > 0 {
 		fmt.Println("Groups:")

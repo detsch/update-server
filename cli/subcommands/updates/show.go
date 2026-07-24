@@ -13,6 +13,7 @@ import (
 )
 
 var showTufDetails bool
+var showDevices bool
 
 var showCmd = &cobra.Command{
 	Use:   "show <tag> <update-name>",
@@ -28,6 +29,7 @@ var showCmd = &cobra.Command{
 
 func init() {
 	showCmd.Flags().BoolVar(&showTufDetails, "tuf-details", false, "Print the raw TUF metadata")
+	showCmd.Flags().BoolVar(&showDevices, "show-devices", false, "Print the device UUIDs in the rollout summary")
 	UpdatesCmd.AddCommand(showCmd)
 }
 
@@ -38,6 +40,8 @@ func showUpdate(updates api.UpdatesApi, tag, updateName string) {
 	fmt.Println("# Details")
 	fmt.Printf("Update: %s\n", updateName)
 	fmt.Printf("Tag: %s\n\n", tag)
+
+	showRolloutSummary(updates, tag, updateName)
 	showRollouts(updates, tag, updateName)
 
 	fmt.Println("# TUF metadata")
@@ -68,6 +72,32 @@ func showUpdate(updates api.UpdatesApi, tag, updateName string) {
 
 	fmt.Println("  Apps:")
 	printApps(custom)
+}
+
+func showRolloutSummary(updates api.UpdatesApi, tag, updateName string) {
+	fmt.Println("# Rollout summary")
+	summary, err := updates.GetSummary(tag, updateName)
+	if err != nil {
+		fmt.Printf("Error fetching rollout summary: %v\n\n", err)
+		return
+	}
+
+	for status, count := range summary.Status {
+		fmt.Printf("  %s: %d\n", status, count)
+		if showDevices {
+			fmt.Printf("    looking up devices ...")
+			devices, err := updates.GetDevicesForStatus(tag, updateName, status)
+			if err != nil {
+				fmt.Printf("\rError fetching devices for status %s: %v\n", status, err)
+			} else {
+				fmt.Printf("\r")
+				for _, device := range devices {
+					fmt.Printf("    %s\n", device)
+				}
+			}
+		}
+	}
+	fmt.Println()
 }
 
 func showRollouts(updates api.UpdatesApi, tag, updateName string) {
