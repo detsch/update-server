@@ -2,15 +2,34 @@
     <section class="content-section">
       <h2>{{.Title}}</h2>
 
-      <fieldset>
-        <legend><strong>Tag</strong></legend>
-        <p>{{.Tag}}</p>
-      </fieldset>
+      <div class="grid">
+        <div>
+          <fieldset>
+            <legend><strong>Tag</strong></legend>
+            <p>{{.Tag}}</p>
+          </fieldset>
 
-      <fieldset>
-        <legend><strong>Name</strong></legend>
-        <p>{{.Name}}</p>
-      </fieldset>
+          <fieldset>
+            <legend><strong>Name</strong></legend>
+            <p>{{.Name}}</p>
+          </fieldset>
+        </div> 
+
+        <div>
+         <fieldset>
+            <legend><strong>Rollout summary</strong></legend>
+            <ul>
+            {{ if len .Summary.Status }}
+              {{ range $status, $count := .Summary.Status }}
+                <li><strong>{{ $status }}:</strong> <a href="#" onclick="showDevicesModal('{{ $status }}'); return false;">{{ $count }} devices</a></li>
+              {{ end }}
+            {{ else }}
+              <li>No rollout summary available.</li>
+            {{ end }}
+            </ul>
+          </fieldset> 
+        </div> 
+      </div>
 
       <button onclick='location.href="/updates/{{$.Tag}}/{{$.Name}}/tail";'>Follow progress</button>
       <button onclick="rolloutModal.show()">Create rollout</button>
@@ -50,8 +69,22 @@
           </footer>
         </article>
       </dialog>
-    </section>
 
+      <dialog id="devicesModal">
+        <article>
+          <header>
+            <button aria-label="Close" rel="prev" onclick="devicesModal.close()"></button>
+            <h3>Devices - <span id="devicesStatus"></span></h3>
+          </header>
+          <div id="devicesContent">
+            <ul id="devicesList"></ul>
+          </div>
+          <footer>
+            <button role="button" onclick="devicesModal.close()">Close</button>
+          </footer>
+        </article>
+      </dialog>
+    </section>
 
     <section class="content-section">
       <h2>TUF Metadata</h2>
@@ -161,6 +194,34 @@
     </section>
 
     <script>
+      function showDevicesModal(status) {
+        document.getElementById('devicesStatus').textContent = status;
+        const list = document.getElementById('devicesList');
+        list.innerHTML = '<li>Loading...</li>';
+        devicesModal.show();
+        fetch('/v1/updates/{{.Tag}}/{{.Name}}/query?status=' + encodeURIComponent(status))
+          .then(response => response.json())
+          .then(data => {
+            const devicesList = data || [];
+            list.innerHTML = '';
+            devicesList.forEach(uuid => {
+              const li = document.createElement('li');
+              const a = document.createElement('a');
+              a.href = '/devices/' + uuid;
+              a.textContent = uuid;
+              li.appendChild(a);
+              list.appendChild(li);
+            });
+          })
+          .catch(error => {
+            console.error('Error fetching devices:', error);
+            list.innerHTML = '';
+            const li = document.createElement('li');
+            li.textContent = 'Error loading devices';
+            list.appendChild(li);
+          });
+      }
+
       function createRollout() {
         // Get form values
         const uuids = document.getElementById('uuids').value;
