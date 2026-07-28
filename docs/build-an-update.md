@@ -36,6 +36,12 @@ identifies this build:
 > The first time you build, its recommended to set H_BUILD to your latest
 > FoundriesFactory target number and add 1.
 
+Next, build lmp-device-register to point at this update server:
+```
+echo LMP_DEVICE_API = "https://<YOUR SERVER>/v1/devices" >> conf/local.conf
+echo LMP_OAUTH_API = "https://<YOUR SERVER>/oauth2" >> conf/local.conf
+```
+
 Now build:
 
 ```
