@@ -18,6 +18,10 @@ see [How to build an Update](./docs/build-an-update.md) for producing that
 content in the first place. Then follow the
 [updates](./docs/updates.md) guide for setting this up.
 
+## The Update Framework (TUF)
+The update server uses TUF to secure the delivery of update manifests. See
+[How TUF Works](./docs/tuf.md) for details.
+
 ## API access
 Follow the [API](./docs/api.md) to learn how to access and use the REST API.
 
