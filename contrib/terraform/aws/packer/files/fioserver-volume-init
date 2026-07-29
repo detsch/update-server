@@ -1,0 +1,60 @@
+#!/bin/bash
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#
+# Label the fioserver data volume, formatting it only if it is genuinely blank.
+#
+# Safety is the whole point of this script: it must never reformat a volume that
+# holds a provisioned datadir, because that would destroy the TUF root key and
+# the device PKI. So it only ever acts on a disk with NO filesystem signature at
+# all, and it bails out if that description matches more or less than one disk.
+
+set -euo pipefail
+
+LABEL=fiodata
+
+log() { echo "volume-init: $*"; }
+
+if [ -e "/dev/disk/by-label/${LABEL}" ]; then
+    log "/dev/disk/by-label/${LABEL} already exists; nothing to do"
+    exit 0
+fi
+
+# Identify the root disk so it is never a candidate.
+root_src="$(findmnt -no SOURCE / || true)"
+root_disk=""
+if [ -n "$root_src" ]; then
+    root_disk="$(lsblk -no PKNAME "$root_src" 2>/dev/null || true)"
+    [ -n "$root_disk" ] || root_disk="$(basename "$root_src")"
+fi
+
+candidates=()
+while read -r name type; do
+    [ "$type" = "disk" ] || continue
+    [ "$name" = "$root_disk" ] && continue
+    # Skip any disk that has partitions or a filesystem/RAID signature.
+    if [ -n "$(lsblk -no NAME "/dev/${name}" | tail -n +2)" ]; then
+        log "/dev/${name} has partitions; leaving it alone"
+        continue
+    fi
+    if blkid -p "/dev/${name}" >/dev/null 2>&1; then
+        log "/dev/${name} already has a signature; leaving it alone"
+        continue
+    fi
+    candidates+=("$name")
+done < <(lsblk -dno NAME,TYPE)
+
+if [ "${#candidates[@]}" -eq 0 ]; then
+    echo "volume-init: ERROR: no blank data disk found and no ${LABEL} label present" >&2
+    echo "volume-init: refusing to guess; inspect lsblk output on the instance" >&2
+    exit 1
+elif [ "${#candidates[@]}" -gt 1 ]; then
+    echo "volume-init: ERROR: multiple blank disks (${candidates[*]}); refusing to guess" >&2
+    exit 1
+fi
+
+dev="/dev/${candidates[0]}"
+log "formatting ${dev} as ext4 with label ${LABEL}"
+mkfs.ext4 -q -L "$LABEL" "$dev"
+udevadm settle
+log "done"

@@ -1,0 +1,20 @@
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#
+# Mount the persistent data volume by LABEL rather than device path: the volume
+# is attached as /dev/sdf but appears as /dev/nvme1n1 on Nitro instances, and the
+# number can shift. The label is set once by fioserver-volume-init.
+
+[Unit]
+Description=fioserver data volume
+Requires=fioserver-volume-init.service
+After=fioserver-volume-init.service
+
+[Mount]
+What=/dev/disk/by-label/fiodata
+Where=/data
+Type=ext4
+Options=defaults,noatime
+
+[Install]
+WantedBy=local-fs.target
