@@ -1,6 +1,20 @@
 # Production Guide
 
-## Enabling TLS
+## Deploying on AWS
+
+[contrib/terraform/aws](../contrib/terraform/aws) has Packer and Terraform
+recipes that automate a single-instance AWS deployment: an AMI holding the
+release binary, a persistent EBS volume for the `--datadir`, daily volume
+snapshots, and the irreplaceable secrets (`auth/hmac.secret`, the TUF keys
+and the device PKI) escrowed in AWS Secrets Manager so a replacement instance 
+keeps the same identity.
+
+It offers the choice to use AWS for load balancing or expose the VM directly
+to internet facing traffic.
+
+## Deploying Manually
+
+### Enabling TLS
 
 The "UI port", default 8080, serves unencrypted HTTP communications.
 When exposing this service to the internet, you will need to secure it
@@ -47,12 +61,12 @@ services:
       - ./data:/data
 ```
 
-## Backups
+### Backups
 
 The server stores all of its data under the `--datadir`. This can be
 backed up as needed.
 
-## HA Failover
+### HA Failover
 
 The server has a single SQLite database file, `<datadir>/db.sqlite`.
 You can use the [Litestream](https://litestream.io/) project to stream
