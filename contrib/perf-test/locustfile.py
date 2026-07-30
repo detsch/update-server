@@ -173,3 +173,36 @@ class PerfUser(DeviceUser):
         UpdateFlow: 1,
     }
 
+
+class PerfConfigWarmUser(DeviceUser):
+    """Isolated warm-cache /config check-in: after the first (cold) request,
+    every subsequent one replays the prior response's Date header as
+    If-Modified-Since, modeling steady-state fleet traffic (mostly 304s)
+    rather than the always-cold GET /config every other scene issues. A
+    separate User class (not a PerfUser task) so it never dilutes PerfUser's
+    benchmarked 5:2:3:1 task ratio depended on by other scenes.
+    """
+
+    def on_start(self) -> None:
+        super().on_start()
+        self._last_modified = None
+
+    @task
+    @locust.tag("device:config-warm")
+    def get_config_warm(self) -> None:
+        headers = self._headers()
+        if self._last_modified:
+            headers["If-Modified-Since"] = self._last_modified
+        with self.client.get(
+            "/config",
+            headers=headers,
+            catch_response=True,
+            name="/config (warm)",
+        ) as resp:
+            if resp.status_code == 304:
+                return
+            if not resp.ok:
+                self._fail(resp, f"{resp.status_code}: {resp.text}")
+                return
+            self._last_modified = resp.headers.get("Date")
+
