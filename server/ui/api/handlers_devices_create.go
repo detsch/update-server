@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"maps"
 	"math/big"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,7 +31,12 @@ type DeviceCa struct {
 	DgUrl    string
 }
 
-func LoadDeviceCa(fs *storage.FsHandle) (*DeviceCa, error) {
+func LoadDeviceCa(fs *storage.FsHandle, gatewayAddr string) (*DeviceCa, error) {
+	_, gatewayPort, err := net.SplitHostPort(gatewayAddr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid gateway address %q: %w", gatewayAddr, err)
+	}
+
 	buf, err := fs.Certs.ReadFile(storage.CertsDeviceCaKeyFile)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -79,7 +85,7 @@ func LoadDeviceCa(fs *storage.FsHandle) (*DeviceCa, error) {
 		CaCert:   cert,
 		CaKey:    key,
 		RootCert: rootCrt,
-		DgUrl:    "https://" + tlsCert.DNSNames[0] + ":8443",
+		DgUrl:    "https://" + tlsCert.DNSNames[0] + ":" + gatewayPort,
 	}, nil
 }
 

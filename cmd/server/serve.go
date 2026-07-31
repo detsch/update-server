@@ -36,7 +36,7 @@ func (c *ServeCmd) Run(args CommonArgs) error {
 	if err != nil {
 		return fmt.Errorf("failed to load database: %w", err)
 	}
-	uiServer, err := ui.NewServer(args.ctx, db, fs, c.UiAddr)
+	uiServer, err := ui.NewServer(args.ctx, db, fs, c.UiAddr, c.GatewayAddr)
 	if err != nil {
 		return err
 	}

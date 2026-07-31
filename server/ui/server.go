@@ -25,7 +25,7 @@ type daemon interface {
 	Shutdown()
 }
 
-func NewServer(ctx context.Context, db *storage.DbHandle, fs *storage.FsHandle, bindAddr string) (server.Server, error) {
+func NewServer(ctx context.Context, db *storage.DbHandle, fs *storage.FsHandle, bindAddr, gatewayAddr string) (server.Server, error) {
 	log := context.CtxGetLog(ctx)
 	strg, err := api.NewStorage(db, fs)
 	if err != nil {
@@ -52,7 +52,7 @@ func NewServer(ctx context.Context, db *storage.DbHandle, fs *storage.FsHandle, 
 
 	daemons := daemons.New(ctx, strg, users)
 
-	ca, err := apiHandlers.LoadDeviceCa(fs)
+	ca, err := apiHandlers.LoadDeviceCa(fs, gatewayAddr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load device CA: %w", err)
 	} else if ca != nil {

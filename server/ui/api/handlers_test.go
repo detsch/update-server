@@ -288,7 +288,7 @@ func NewTestClientWithCA(t *testing.T, org string) *testClient {
 		tlsCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCertDER})
 		require.Nil(t, fsS.Certs.WriteFile(storage.CertsTlsPemFile, tlsCertPEM))
 
-		deviceCa, err = LoadDeviceCa(fsS)
+		deviceCa, err = LoadDeviceCa(fsS, ":8443")
 		require.Nil(t, err)
 		require.NotNil(t, deviceCa)
 	}
