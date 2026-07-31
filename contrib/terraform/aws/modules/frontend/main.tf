@@ -10,9 +10,9 @@
 # port 80. An ALB sets X-Forwarded-Proto natively. Session and CSRF cookies are
 # also Secure+SameSite=Strict, so the browser-facing origin must be HTTPS.
 #
-# NLB for the device gateway (8443), TCP passthrough only. The server terminates
-# mTLS itself and needs the device's client certificate intact; terminating that
-# at an L7 proxy would discard it.
+# NLB for the device gateway (var.gateway_port), TCP passthrough only. The
+# server terminates mTLS itself and needs the device's client certificate
+# intact; terminating that at an L7 proxy would discard it.
 
 terraform {
   required_version = ">= 1.5"
@@ -127,7 +127,7 @@ resource "aws_lb" "gateway" {
 
 resource "aws_lb_target_group" "gateway" {
   name_prefix = "fio-"
-  port        = 8443
+  port        = var.gateway_port
   protocol    = "TCP"
   vpc_id      = var.vpc_id
   target_type = "ip"
@@ -152,12 +152,12 @@ resource "aws_lb_target_group" "gateway" {
 resource "aws_lb_target_group_attachment" "gateway" {
   target_group_arn = aws_lb_target_group.gateway.arn
   target_id        = var.target_ip
-  port             = 8443
+  port             = var.gateway_port
 }
 
 resource "aws_lb_listener" "gateway" {
   load_balancer_arn = aws_lb.gateway.arn
-  port              = 8443
+  port              = var.gateway_port
   protocol          = "TCP"
 
   default_action {

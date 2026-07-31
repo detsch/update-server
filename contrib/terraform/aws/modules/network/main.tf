@@ -130,8 +130,8 @@ resource "aws_vpc_security_group_ingress_rule" "server_gateway" {
   security_group_id = aws_security_group.server.id
   description       = "Device gateway mTLS (server terminates TLS itself)"
   cidr_ipv4         = "0.0.0.0/0"
-  from_port         = 8443
-  to_port           = 8443
+  from_port         = var.gateway_port
+  to_port           = var.gateway_port
   ip_protocol       = "tcp"
 }
 

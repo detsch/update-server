@@ -8,7 +8,7 @@ output "ui_url" {
 
 output "device_gateway_url" {
   description = "Gateway address devices connect to."
-  value       = "https://${var.gateway_hostname}:8443"
+  value       = "https://${var.gateway_hostname}:${var.gateway_port}"
 }
 
 output "alb_dns_name" {

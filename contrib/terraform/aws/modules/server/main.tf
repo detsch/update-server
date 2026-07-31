@@ -180,7 +180,7 @@ resource "aws_instance" "server" {
           FIOSERVER_SECRET_PREFIX=${local.secret_prefix}
           FIOSERVER_TLS_EXPIRY_DAYS=${var.tls_expiry_days}
           FIOSERVER_UI_ADDR=${local.ui_addr}
-          FIOSERVER_GATEWAY_ADDR=0.0.0.0:8443
+          FIOSERVER_GATEWAY_ADDR=0.0.0.0:${var.gateway_port}
           AWS_REGION=${data.aws_region.current.name}
     runcmd:
       - [systemctl, enable, --now, fioserver-volume-init.service]

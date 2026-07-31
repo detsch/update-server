@@ -37,6 +37,7 @@ module "network" {
   availability_zones = local.azs
   allowed_ssh_cidr   = var.allowed_ssh_cidr
   enable_alb_ingress = true
+  gateway_port       = var.gateway_port
   tags               = var.tags
 }
 
@@ -46,6 +47,7 @@ module "server" {
   name_prefix       = var.name_prefix
   hostname          = var.hostname
   gateway_hostname  = var.gateway_hostname
+  gateway_port      = var.gateway_port
   factory           = var.factory
   ami_id            = var.ami_id
   subnet_id         = module.network.public_subnet_ids[0]
@@ -86,6 +88,7 @@ module "frontend" {
   target_ip             = module.server.private_ip
   alb_security_group_id = module.network.alb_security_group_id
   certificate_arn       = module.dns.certificate_arn
+  gateway_port          = var.gateway_port
 
   tags = var.tags
 }

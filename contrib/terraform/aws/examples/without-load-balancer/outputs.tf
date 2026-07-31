@@ -8,7 +8,7 @@ output "ui_url" {
 
 output "device_gateway_url" {
   description = "Gateway address devices connect to, exposed directly."
-  value       = "https://${var.hostname}:8443"
+  value       = "https://${var.hostname}:${var.gateway_port}"
 }
 
 output "public_ip" {

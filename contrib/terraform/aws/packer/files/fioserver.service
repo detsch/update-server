@@ -6,8 +6,8 @@
 # The UI bind address comes from /etc/fioserver/env, because it differs by
 # topology: with a load balancer the ALB connects over the network, so the UI
 # must listen on 0.0.0.0; with Caddy in front it only ever needs loopback.
-# The gateway always binds 0.0.0.0:8443 -- it terminates mTLS itself and must
-# never sit behind an L7 proxy.
+# The gateway always binds 0.0.0.0:$FIOSERVER_GATEWAY_ADDR's port (8443 by
+# default) -- it terminates mTLS itself and must never sit behind an L7 proxy.
 
 [Unit]
 Description=Foundries update server

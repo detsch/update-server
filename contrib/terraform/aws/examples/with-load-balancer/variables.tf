@@ -21,7 +21,7 @@ variable "hostname" {
 variable "gateway_hostname" {
   type        = string
   description = <<-EOT
-    DNS name devices use for the mTLS gateway on port 8443, e.g.
+    DNS name devices use for the mTLS gateway on var.gateway_port, e.g.
     "devices.example.com".
 
     Must differ from var.hostname in this topology: the UI is behind an ALB and
@@ -36,6 +36,12 @@ variable "gateway_hostname" {
     condition     = var.gateway_hostname != ""
     error_message = "The gateway_hostname is required and must differ from hostname."
   }
+}
+
+variable "gateway_port" {
+  type        = number
+  description = "Port the device gateway's mTLS listener is reachable on."
+  default     = 8443
 }
 
 variable "factory" {

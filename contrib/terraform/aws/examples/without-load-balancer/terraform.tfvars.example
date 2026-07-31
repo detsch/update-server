@@ -11,6 +11,9 @@ ami_id     = "ami-0123456789abcdef0" # from `packer build`
 # resolve to the instance's Elastic IP before Caddy can get a certificate.
 hostname = "dg.example.com"
 
+# Uncomment to expose the device gateway on a non-default port.
+# gateway_port = 8443
+
 factory = "my-factory"
 
 # Set this and Terraform creates the A record for you. Otherwise create it

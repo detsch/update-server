@@ -47,6 +47,12 @@ variable "enable_caddy_ports" {
   default     = false
 }
 
+variable "gateway_port" {
+  type        = number
+  description = "Port the device gateway's mTLS listener is reachable on."
+  default     = 8443
+}
+
 variable "tags" {
   type        = map(string)
   description = "Extra tags applied to every resource."

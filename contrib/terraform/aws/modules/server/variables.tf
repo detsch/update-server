@@ -18,9 +18,9 @@ variable "hostname" {
 variable "gateway_hostname" {
   type        = string
   description = <<-EOT
-    DNS name devices use for the mTLS gateway on port 8443. Leave empty to use
-    var.hostname, which is correct when one address serves both (the Caddy
-    topology).
+    DNS name devices use for the mTLS gateway on var.gateway_port. Leave empty
+    to use var.hostname, which is correct when one address serves both (the
+    Caddy topology).
 
     With load balancers this MUST be a distinct name: the UI is fronted by an
     ALB and the gateway by an NLB, and a single DNS record cannot alias to both.
@@ -112,6 +112,12 @@ variable "tls_expiry_days" {
     would turn a working deployment into a hard failure a year later.
   EOT
   default     = 3650
+}
+
+variable "gateway_port" {
+  type        = number
+  description = "Port the device gateway's mTLS listener binds and is reachable on."
+  default     = 8443
 }
 
 variable "enable_caddy" {

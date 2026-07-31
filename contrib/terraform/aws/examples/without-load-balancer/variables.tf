@@ -16,8 +16,8 @@ variable "name_prefix" {
 variable "hostname" {
   type        = string
   description = <<-EOT
-    Public DNS name for both the UI (443) and the device gateway (8443), e.g.
-    "dg.example.com".
+    Public DNS name for both the UI (443) and the device gateway
+    (var.gateway_port), e.g. "dg.example.com".
 
     It must resolve to this instance's Elastic IP before Caddy can complete the
     Let's Encrypt HTTP-01 challenge. It is also baked into the gateway
@@ -29,6 +29,12 @@ variable "hostname" {
 variable "factory" {
   type        = string
   description = "Factory name recorded in the PKI subject."
+}
+
+variable "gateway_port" {
+  type        = number
+  description = "Port the device gateway's mTLS listener is reachable on."
+  default     = 8443
 }
 
 variable "ami_id" {

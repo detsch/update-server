@@ -4,8 +4,8 @@
 # Update server on a single instance, no load balancers.
 #
 # Caddy runs on the box and terminates TLS for the UI with Let's Encrypt, while
-# the device gateway is exposed directly on 8443 -- Caddy must never proxy it,
-# because the server terminates that mTLS itself.
+# the device gateway is exposed directly on var.gateway_port (8443 by default)
+# -- Caddy must never proxy it, because the server terminates that mTLS itself.
 #
 # One Elastic IP serves both, so the UI and the gateway share a hostname. That
 # address is baked into the gateway certificate and into every enrolled device's
@@ -45,6 +45,7 @@ module "network" {
   availability_zones = local.azs
   allowed_ssh_cidr   = var.allowed_ssh_cidr
   enable_caddy_ports = true
+  gateway_port       = var.gateway_port
   tags               = var.tags
 }
 
@@ -54,6 +55,7 @@ module "server" {
   name_prefix       = var.name_prefix
   hostname          = var.hostname
   factory           = var.factory
+  gateway_port      = var.gateway_port
   ami_id            = var.ami_id
   subnet_id         = module.network.public_subnet_ids[0]
   availability_zone = local.azs[0]
