@@ -13,6 +13,7 @@ import (
 
 type Rollout = models.Rollout
 type Update = models.Update
+type UpdateSummary = models.UpdateSummary
 
 type UpdatesApi struct {
 	api *Api
@@ -31,6 +32,18 @@ func (u UpdatesApi) Get(tag, updateName string) ([]string, error) {
 	var rollouts []string
 	endpoint := "/v1/updates/" + tag + "/" + updateName + "/rollouts"
 	return rollouts, u.api.Get(endpoint, &rollouts)
+}
+
+func (u UpdatesApi) GetSummary(tag, updateName string) (UpdateSummary, error) {
+	var summary UpdateSummary
+	endpoint := "/v1/updates/" + tag + "/" + updateName + "/summary"
+	return summary, u.api.Get(endpoint, &summary)
+}
+
+func (u UpdatesApi) GetDevicesForStatus(tag, updateName, status string) ([]string, error) {
+	var devices []string
+	endpoint := "/v1/updates/" + tag + "/" + updateName + "/query?status=" + url.QueryEscape(status)
+	return devices, u.api.Get(endpoint, &devices)
 }
 
 // UpdateTuf holds the TUF metadata for an update keyed by role file name
@@ -53,6 +66,18 @@ func (u UpdatesApi) GetRollout(tag, updateName, rollout string) (Rollout, error)
 	var r Rollout
 	endpoint := "/v1/updates/" + tag + "/" + updateName + "/rollouts/" + rollout
 	return r, u.api.Get(endpoint, &r)
+}
+
+func (u UpdatesApi) GetRolloutSummary(tag, updateName, rollout string) (UpdateSummary, error) {
+	var report UpdateSummary
+	endpoint := "/v1/updates/" + tag + "/" + updateName + "/rollouts/" + rollout + "/summary"
+	return report, u.api.Get(endpoint, &report)
+}
+
+func (u UpdatesApi) GetDevicesForRolloutStatus(tag, updateName, rollout, status string) ([]string, error) {
+	var devices []string
+	endpoint := "/v1/updates/" + tag + "/" + updateName + "/rollouts/" + rollout + "/query?status=" + url.QueryEscape(status)
+	return devices, u.api.Get(endpoint, &devices)
 }
 
 func (u UpdatesApi) CreateRollout(tag, updateName, rollout string, data Rollout) error {

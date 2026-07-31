@@ -5,6 +5,8 @@ package api
 
 import (
 	"crypto/sha256"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +17,126 @@ import (
 	"github.com/foundriesio/update-server/storage"
 	"github.com/foundriesio/update-server/storage/ostree"
 )
+
+// A special status used to indicate that a device was expected to be part of the rollout
+// but is not present in the rollout log.
+const MissingState = "Missing"
+
+type UpdateSummary struct {
+	// A map of device status to the number of devices in that status for the update.
+	Status map[string]int `json:"summaries"`
+}
+
+func (s Storage) lastKnownStates(tag, name string, filterUuids map[string]any) (map[string]string, error) {
+	lastStates := make(map[string]string)
+
+	// Collect the last known state for each device in the rollout.
+	for line, err := range s.TailRolloutsLog(tag, name, nil) {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				// No rollout log yet, return an empty report.
+				return nil, nil
+			}
+			return nil, err
+		}
+		var status DeviceStatus
+		if err = json.Unmarshal([]byte(line), &status); err == nil {
+			if filterUuids != nil {
+				if _, ok := filterUuids[status.Uuid]; !ok {
+					continue
+				}
+			}
+			lastStates[status.Uuid] = status.Status
+		}
+	}
+
+	return lastStates, nil
+}
+
+func (s Storage) updateSummary(tag, name string, filterUuids map[string]any) (*UpdateSummary, error) {
+	lastStates, err := s.lastKnownStates(tag, name, filterUuids)
+	if err != nil {
+		return nil, err
+	} else if lastStates == nil {
+		return &UpdateSummary{
+			Status: make(map[string]int),
+		}, nil
+	}
+
+	report := &UpdateSummary{Status: make(map[string]int)}
+	for uuid, status := range lastStates {
+		count, ok := report.Status[status]
+		if !ok {
+			count = 0
+		}
+		report.Status[status] = count + 1
+		if filterUuids != nil {
+			delete(filterUuids, uuid)
+		}
+	}
+	if len(filterUuids) > 0 {
+		report.Status[MissingState] = len(filterUuids)
+	}
+	return report, nil
+}
+
+func (s Storage) updateStateFor(tag, name, filterState string, filterUuids map[string]any) ([]string, error) {
+	lastStates, err := s.lastKnownStates(tag, name, filterUuids)
+	if err != nil {
+		return nil, err
+	} else if lastStates == nil {
+		return []string{}, nil
+	}
+
+	result := make([]string, 0, len(lastStates))
+	for uuid, state := range lastStates {
+		if state == filterState {
+			result = append(result, uuid)
+		}
+		if filterUuids != nil {
+			delete(filterUuids, uuid)
+		}
+	}
+	if filterState == MissingState {
+		result = make([]string, 0, len(filterUuids))
+		for uuid := range filterUuids {
+			result = append(result, uuid)
+		}
+	}
+	return result, nil
+}
+
+func (s Storage) UpdateSummary(tag, name string) (*UpdateSummary, error) {
+	return s.updateSummary(tag, name, nil)
+}
+
+func (s Storage) UpdateStateFor(tag, updateName, status string) ([]string, error) {
+	return s.updateStateFor(tag, updateName, status, nil)
+}
+
+func (s Storage) RolloutSummary(tag, updateName, rolloutName string) (*UpdateSummary, error) {
+	rollout, err := s.GetRollout(tag, updateName, rolloutName)
+	if err != nil {
+		return nil, err
+	}
+	filter := make(map[string]any, len(rollout.Effect))
+	for _, uuid := range rollout.Effect {
+		filter[uuid] = nil
+	}
+	return s.updateSummary(tag, updateName, filter)
+}
+
+func (s Storage) RolloutStateFor(tag, updateName, rolloutName, status string) ([]string, error) {
+	rollout, err := s.GetRollout(tag, updateName, rolloutName)
+	if err != nil {
+		return nil, err
+	}
+	filter := make(map[string]any, len(rollout.Effect))
+	for _, uuid := range rollout.Effect {
+		filter[uuid] = nil
+	}
+	return s.updateStateFor(tag, updateName, status, filter)
+}
 
 // generateUpdateTuf probes the uploaded ostree/apps content for an update and
 // generates its TUF metadata via AddTarget. Values discovered from the upload

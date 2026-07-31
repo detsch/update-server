@@ -24,6 +24,7 @@ import (
 
 type Rollout = storage.Rollout
 type Update = storage.Update
+type UpdateSummary = storage.UpdateSummary
 
 // @Summary List updates
 // @Description Requires scope: updates:read or updates:read-update
@@ -43,6 +44,84 @@ func (h *handlers) updateList(c echo.Context) error {
 		}
 		return c.JSON(http.StatusOK, updates)
 	}
+}
+
+// @Summary Get summary of update
+// @Description Requires scope: updates:read or updates:read-update
+// @Tags    Updates
+// @Produce json
+// @Success 200 {object} UpdateSummary
+// @Param   tag path string true "Update tag"
+// @Param   update path string true "Update name"
+// @Router  /updates/{tag}/{update}/summary [get]
+func (h *handlers) updateSummary(c echo.Context) error {
+	tag := c.Param("tag")
+	updateName := c.Param("update")
+	summary, err := h.storage.UpdateSummary(tag, updateName)
+	if err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "Failed to get update summary")
+	}
+	return c.JSON(http.StatusOK, summary)
+}
+
+// @Summary Query for devices in a given state for an update
+// @Description Requires scope: updates:read or updates:read-update
+// @Tags    Updates
+// @Produce json
+// @Success 200 {array} string
+// @Param   tag path string true "Update tag"
+// @Param   update path string true "Update name"
+// @Router  /updates/{tag}/{update}/query [get]
+func (h *handlers) updateQuery(c echo.Context) error {
+	tag := c.Param("tag")
+	updateName := c.Param("update")
+	status := c.QueryParam("status")
+	devices, err := h.storage.UpdateStateFor(tag, updateName, status)
+	if err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "Failed to get update query")
+	}
+	return c.JSON(http.StatusOK, devices)
+}
+
+// @Summary Get summary of update
+// @Description Requires scope: updates:read or updates:read-update
+// @Tags    Updates
+// @Produce json
+// @Success 200 {object} UpdateSummary
+// @Param   tag path string true "Update tag"
+// @Param   update path string true "Update name"
+// @Param   rollout path string true "Rollout name"
+// @Router  /updates/{tag}/{update}/rollouts/{rollout}/summary [get]
+func (h *handlers) updateRolloutSummary(c echo.Context) error {
+	tag := c.Param("tag")
+	updateName := c.Param("update")
+	rolloutName := c.Param("rollout")
+	summary, err := h.storage.RolloutSummary(tag, updateName, rolloutName)
+	if err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "Failed to get rollout report")
+	}
+	return c.JSON(http.StatusOK, summary)
+}
+
+// @Summary Query for devices in a given state for an update
+// @Description Requires scope: updates:read or updates:read-update
+// @Tags    Updates
+// @Produce json
+// @Success 200 {array} string
+// @Param   tag path string true "Update tag"
+// @Param   update path string true "Update name"
+// @Param   rollout path string true "Rollout name"
+// @Router  /updates/{tag}/{update}/rollouts/{rollout}/query [get]
+func (h *handlers) updateRolloutQuery(c echo.Context) error {
+	tag := c.Param("tag")
+	updateName := c.Param("update")
+	rolloutName := c.Param("rollout")
+	status := c.QueryParam("status")
+	devices, err := h.storage.RolloutStateFor(tag, updateName, rolloutName, status)
+	if err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "Failed to get rollout query")
+	}
+	return c.JSON(http.StatusOK, devices)
 }
 
 // @Summary Tail update logs

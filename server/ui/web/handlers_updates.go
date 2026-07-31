@@ -168,6 +168,11 @@ func (h handlers) updatesGet(c echo.Context) error {
 		return h.handleUnexpected(c, err)
 	}
 
+	var summary api.UpdateSummary
+	if err := getJson(c.Request().Context(), fmt.Sprintf("/v1/updates/%s/%s/summary", c.Param("tag"), c.Param("name")), &summary); err != nil {
+		return h.handleUnexpected(c, err)
+	}
+
 	var groups []string
 	if err := getJson(c.Request().Context(), "/v1/known-labels/device-groups", &groups); err != nil {
 		return h.handleUnexpected(c, err)
@@ -188,6 +193,7 @@ func (h handlers) updatesGet(c echo.Context) error {
 		baseCtx
 		Tag          string
 		Name         string
+		Summary      api.UpdateSummary
 		Rollouts     []string
 		Groups       []string
 		Tuf          api.UpdateTufResp
@@ -200,6 +206,7 @@ func (h handlers) updatesGet(c echo.Context) error {
 		baseCtx:      h.baseCtx(c, "Update Details", "updates"),
 		Tag:          c.Param("tag"),
 		Name:         c.Param("name"),
+		Summary:      summary,
 		Rollouts:     rollouts,
 		Groups:       groups,
 		Tuf:          tuf,
@@ -220,18 +227,25 @@ func (h handlers) updatesRollout(c echo.Context) error {
 		return EchoError(c, err, 500, err.Error())
 	}
 
+	var summary api.UpdateSummary
+	if err := getJson(c.Request().Context(), url+"/summary", &summary); err != nil {
+		return h.handleUnexpected(c, err)
+	}
+
 	ctx := struct {
 		baseCtx
 		Tag     string
 		Name    string
 		Rollout string
 		Details api.Rollout
+		Summary api.UpdateSummary
 	}{
 		baseCtx: h.baseCtx(c, "Rollout Details", "updates"),
 		Tag:     c.Param("tag"),
 		Name:    c.Param("name"),
 		Rollout: c.Param("rollout"),
 		Details: details,
+		Summary: summary,
 	}
 	return h.templates.ExecuteTemplate(c.Response(), "update_rollout.html", ctx)
 }
