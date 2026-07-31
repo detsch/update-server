@@ -126,6 +126,10 @@ func main() {
 
 	fmt.Printf("generated %d devices in %s\n", *numDevices, time.Since(start).Round(time.Millisecond))
 
+	if err := seedConfig(*datadir); err != nil {
+		fatal("seed config:", err)
+	}
+
 	if *seedUpdateFlag {
 		uuids := make([]string, len(results))
 		pubkeys := make(map[string]string, len(results))

@@ -177,10 +177,12 @@ class PerfUser(DeviceUser):
 class PerfConfigWarmUser(DeviceUser):
     """Isolated warm-cache /config check-in: after the first (cold) request,
     every subsequent one replays the prior response's Date header as
-    If-Modified-Since, modeling steady-state fleet traffic (mostly 304s)
-    rather than the always-cold GET /config every other scene issues. A
-    separate User class (not a PerfUser task) so it never dilutes PerfUser's
-    benchmarked 5:2:3:1 task ratio depended on by other scenes.
+    If-Modified-Since. Requires a seeded config (gen-certs always writes a
+    factory config — see seed_config.go) so GetConfigs() returns a non-zero
+    timestamp; without one, /config 204s before the If-Modified-Since check
+    is ever reached and this scene degenerates to an always-cold GET. Kept
+    as a separate User class (not a PerfUser task) so it never dilutes
+    PerfUser's benchmarked 5:2:3:1 task ratio depended on by other scenes.
     """
 
     def on_start(self) -> None:
