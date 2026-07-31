@@ -18,15 +18,12 @@ data "aws_region" "current" {}
 locals {
   tags = merge(var.tags, { Name = var.name_prefix })
 
-  # The gateway certificate's SAN, and therefore what pki-init is given. Falls
-  # back to the UI hostname when one address serves both.
-  gateway_hostname = var.gateway_hostname == "" ? var.hostname : var.gateway_hostname
-
   secret_prefix = "${var.name_prefix}/${var.hostname}"
 
-  # Written by the instance on first boot, never by Terraform. Declared here so
-  # the IAM policy can name them explicitly rather than using a wildcard.
-  escrowed_secrets = ["hmac-secret", "certs-archive", "tuf-archive", "admin-password"]
+  # Written by scripts/init-secrets.sh, never by Terraform or the instance.
+  # Declared here so the IAM policy can name them explicitly rather than
+  # using a wildcard.
+  escrowed_secrets = ["hmac-secret", "certs-archive", "tuf-archive"]
 
   # With an ALB in front the instance must accept connections over the network;
   # with Caddy on the box, loopback is enough and keeps 8080 unreachable.
@@ -63,36 +60,19 @@ resource "aws_volume_attachment" "data" {
 }
 
 # ---------------------------------------------------------------- secrets ----
-resource "aws_secretsmanager_secret" "auth_config" {
-  name        = "${local.secret_prefix}/auth-config"
-  description = "auth-config.json for the update server"
-
-  recovery_window_in_days = var.secret_recovery_window_days
-  tags                    = local.tags
+# Terraform never creates these -- scripts/init-secrets.sh does, before
+# `apply` runs. Looking them up with a data source (rather than owning them
+# as a resource) means a deployment that skips the script fails fast here,
+# at plan/apply time, instead of succeeding and leaving the instance to fail
+# loudly at boot.
+data "aws_secretsmanager_secret" "auth_config" {
+  name = "${local.secret_prefix}/auth-config"
 }
 
-# The only secret Terraform populates. If auth_config_json is empty the instance
-# generates a local-auth config on first boot and escrows it here itself, which
-# is why ignore_changes is set: a later apply must not clobber that.
-resource "aws_secretsmanager_secret_version" "auth_config" {
-  count = var.auth_config_json == "" ? 0 : 1
-
-  secret_id     = aws_secretsmanager_secret.auth_config.id
-  secret_string = var.auth_config_json
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
-}
-
-resource "aws_secretsmanager_secret" "escrow" {
+data "aws_secretsmanager_secret" "escrow" {
   for_each = toset(local.escrowed_secrets)
 
-  name        = "${local.secret_prefix}/${each.key}"
-  description = "Written by the instance on first boot: ${each.key}"
-
-  recovery_window_in_days = var.secret_recovery_window_days
-  tags                    = local.tags
+  name = "${local.secret_prefix}/${each.key}"
 }
 
 # -------------------------------------------------------------------- IAM ----
@@ -114,17 +94,17 @@ resource "aws_iam_role" "server" {
 
 data "aws_iam_policy_document" "server" {
   # Scoped to exactly the five secrets this deployment owns, not a prefix
-  # wildcard.
+  # wildcard. Read-only: the instance only ever restores from escrow (see
+  # fioserver-bootstrap.sh's State B); Escrow is populated by init-secrets.sh.
   statement {
     sid = "SecretEscrow"
     actions = [
       "secretsmanager:GetSecretValue",
-      "secretsmanager:PutSecretValue",
       "secretsmanager:DescribeSecret",
     ]
     resources = concat(
-      [aws_secretsmanager_secret.auth_config.arn],
-      [for s in aws_secretsmanager_secret.escrow : s.arn],
+      [data.aws_secretsmanager_secret.auth_config.arn],
+      [for s in data.aws_secretsmanager_secret.escrow : s.arn],
     )
   }
 
@@ -175,10 +155,7 @@ resource "aws_instance" "server" {
         permissions: '0644'
         content: |
           FIOSERVER_HOSTNAME=${var.hostname}
-          FIOSERVER_GATEWAY_HOSTNAME=${local.gateway_hostname}
-          FIOSERVER_FACTORY=${var.factory}
           FIOSERVER_SECRET_PREFIX=${local.secret_prefix}
-          FIOSERVER_TLS_EXPIRY_DAYS=${var.tls_expiry_days}
           FIOSERVER_UI_ADDR=${local.ui_addr}
           FIOSERVER_GATEWAY_ADDR=0.0.0.0:${var.gateway_port}
           AWS_REGION=${data.aws_region.current.name}

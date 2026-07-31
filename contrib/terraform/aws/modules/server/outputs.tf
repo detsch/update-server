@@ -27,10 +27,10 @@ output "secret_prefix" {
 }
 
 output "secret_arns" {
-  description = "ARNs of every secret this deployment owns."
+  description = "ARNs of every secret this deployment reads from Secrets Manager."
   value = merge(
-    { auth-config = aws_secretsmanager_secret.auth_config.arn },
-    { for k, s in aws_secretsmanager_secret.escrow : k => s.arn },
+    { auth-config = data.aws_secretsmanager_secret.auth_config.arn },
+    { for k, s in data.aws_secretsmanager_secret.escrow : k => s.arn },
   )
 }
 

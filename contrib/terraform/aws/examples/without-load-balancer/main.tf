@@ -54,7 +54,6 @@ module "server" {
 
   name_prefix       = var.name_prefix
   hostname          = var.hostname
-  factory           = var.factory
   gateway_port      = var.gateway_port
   ami_id            = var.ami_id
   subnet_id         = module.network.public_subnet_ids[0]
@@ -64,8 +63,6 @@ module "server" {
   instance_type    = var.instance_type
   data_volume_size = var.data_volume_size
   ssh_key_name     = var.ssh_key_name
-  auth_config_json = var.auth_config_json
-  tls_expiry_days  = var.tls_expiry_days
 
   enable_caddy = true
   assign_eip   = true

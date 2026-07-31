@@ -40,8 +40,3 @@ output "secret_prefix" {
   description = "Secrets Manager prefix holding the escrowed keys."
   value       = module.server.secret_prefix
 }
-
-output "admin_password_command" {
-  description = "Retrieve the generated admin password (only when auth_config_json was empty)."
-  value       = "aws secretsmanager get-secret-value --secret-id ${module.server.secret_prefix}/admin-password --query SecretString --output text"
-}

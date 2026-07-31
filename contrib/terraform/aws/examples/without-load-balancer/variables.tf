@@ -26,11 +26,6 @@ variable "hostname" {
   EOT
 }
 
-variable "factory" {
-  type        = string
-  description = "Factory name recorded in the PKI subject."
-}
-
 variable "gateway_port" {
   type        = number
   description = "Port the device gateway's mTLS listener is reachable on."
@@ -74,23 +69,6 @@ variable "allowed_ssh_cidr" {
   type        = string
   description = "CIDR allowed to reach port 22, or \"\" to omit the rule."
   default     = ""
-}
-
-variable "auth_config_json" {
-  type        = string
-  sensitive   = true
-  description = <<-EOT
-    Contents of auth-config.json, typically `file("auth-config.json")`. Leave
-    empty for local auth with a generated admin password escrowed in Secrets
-    Manager. For OAuth, Config.BaseUrl must be "https://<hostname>".
-  EOT
-  default     = ""
-}
-
-variable "tls_expiry_days" {
-  type        = number
-  description = "Gateway certificate validity. The gateway will not start once it expires."
-  default     = 3650
 }
 
 variable "snapshot_retention_days" {

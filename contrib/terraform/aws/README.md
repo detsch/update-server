@@ -30,11 +30,12 @@ VerifyClientCertIfGiven`, with the device CA in `certs/cas.pem`). Terminating
 that at an L7 proxy would discard the certificate the server needs, so the NLB
 forwards TCP untouched.
 
-**Terraform cannot create the TUF keys.** They are encrypted at rest with a key
-derived from `auth/hmac.secret`, so they must be generated on the instance. That
-turns out to be a benefit: no key material ever enters Terraform state. The
-instance generates its own secrets on first boot and pushes them to Secrets
-Manager using its instance profile.
+**Terraform never touches the TUF keys.** They are encrypted at rest with a key
+derived from `auth/hmac.secret`, so both must be generated together, before the
+instance boots. `scripts/init-secrets.sh` generates the hmac secret, PKI, and TUF
+keys locally with the `fioserver` binary and escrows them in Secrets Manager; the
+instance's IAM role only ever reads that escrow back, and no key material ever
+enters Terraform state.
 
 **The gateway hostname is effectively immutable.** `pki-init --dnsname` becomes
 the first DNS SAN of the gateway certificate, and the server derives every
@@ -46,9 +47,9 @@ device-facing URL from it — each enrolled device stores those URLs in its
 - Terraform >= 1.5, Packer >= 1.9, AWS CLI v2, credentials with permission to
   create VPC, EC2, ELB, IAM, Secrets Manager, DLM and (optionally) Route53
   resources.
-- A Route53 hosted zone. Optional but strongly recommended: without it, `apply`
-  blocks on ACM validation, and Caddy cannot obtain a certificate until DNS
-  resolves.
+- A local `fioserver` binary matching the version in the AMI, for
+  `scripts/init-secrets.sh` (release binaries are linux-amd64/linux-arm64 only;
+  build from source for other platforms).
 
 ## 1. Build the AMI
 
@@ -68,55 +69,54 @@ The resulting AMI ID is printed at the end and written to `packer/manifest.json`
 
 ## 2. Deploy
 
+Generate and escrow the hmac secret, PKI, and TUF keys with
+`scripts/init-secrets.sh` **before** running `terraform apply` — it creates
+the Secrets Manager containers itself, and Terraform only ever reads them
+back via a data source. Running `apply` first fails immediately at that
+lookup, rather than succeeding and letting the instance fail loudly at boot.
+
 ```bash
-cd examples/with-load-balancer
+cd scripts
+./init-secrets.sh --hostname dg.example.com --gateway-hostname devices.example.com \
+    --factory my-factory --auth-config-json /path/to/auth-config.json
+```
+
+The values passed here must match the corresponding Terraform variables
+exactly — they compute the same Secrets Manager names and PKI/TUF identity
+Terraform expects the instance to restore. In the load-balancer topology the
+UI and the gateway need **separate hostnames**, because one DNS record
+cannot alias to two different load balancers.
+
+```bash
+cd ../examples/with-load-balancer
 cp terraform.tfvars.example terraform.tfvars
 $EDITOR terraform.tfvars      # set ami_id, hostname, gateway_hostname, hosted_zone_id
 terraform init
 terraform apply
 ```
 
-In the load-balancer topology the UI and the gateway need **separate hostnames**,
-because one DNS record cannot alias to two different load balancers.
-
-First boot then runs, in order: `auth-init`, writes `auth-config.json`,
-`pki-init`, `tuf-init`, and finally escrows the results. Watch it with:
+First boot then restores `auth-config.json`, `hmac.secret`, `certs/` and `tuf/`
+from that escrow — it never generates key material itself. Watch it with:
 
 ```bash
 aws ssm start-session --target "$(terraform output -raw instance_id)"
 sudo journalctl -u fioserver-bootstrap -f
 ```
 
-### Authentication
+```bash
+aws ssm start-session --target "$(terraform output -raw instance_id)"
+sudo fioserver --datadir /data user-add --username admin --password <password>
+```
 
-Leave `auth_config_json` unset and the instance configures local auth, creating
-an `admin` user whose generated password is escrowed:
+To change the auth config on an already-deployed stack, populate the secret out
+of band instead of re-running `init-secrets.sh` (which would mint a new hmac
+secret and PKI/TUF identity):
 
 ```bash
-eval "$(terraform output -raw admin_password_command)"
+aws secretsmanager put-secret-value \
+  --secret-id "$(terraform output -raw secret_prefix)/auth-config" \
+  --secret-string file://auth-config.json
 ```
-
-Otherwise supply a config — see [docs/auth.md](../../../docs/auth.md) and the
-`contrib/auth-config-{local,github,google}.json` templates:
-
-```hcl
-auth_config_json = <<-EOT
-...
-EOF
-```
-
-For OAuth providers, `Config.BaseUrl` must be `https://<hostname>` and the
-provider's authorized redirect URI must be `https://<hostname>/auth/callback`.
-
-> [!NOTE]
-> A value passed through `auth_config_json` is stored in Terraform state. To keep
-> an OAuth client secret out of state, leave the variable empty and populate the
-> secret out of band instead:
-> ```bash
-> aws secretsmanager put-secret-value \
->   --secret-id "$(terraform output -raw secret_prefix)/auth-config" \
->   --secret-string file://auth-config.json
-> ```
 
 ## 3. Verify
 
@@ -151,11 +151,10 @@ Secrets Manager holds, under `<name_prefix>/<hostname>/`:
 
 | Secret | Written by | Contents |
 | --- | --- | --- |
-| `auth-config` | Terraform, or the instance | `auth-config.json` |
-| `hmac-secret` | instance | `auth/hmac.secret`, base64 |
-| `certs-archive` | instance | gzipped tar of `certs/` |
-| `tuf-archive` | instance | gzipped tar of `tuf/` |
-| `admin-password` | instance | generated admin password, if applicable |
+| `auth-config` | `scripts/init-secrets.sh` | `auth-config.json` |
+| `hmac-secret` | `scripts/init-secrets.sh` | `auth/hmac.secret`, base64 |
+| `certs-archive` | `scripts/init-secrets.sh` | gzipped tar of `certs/` |
+| `tuf-archive` | `scripts/init-secrets.sh` | gzipped tar of `tuf/` |
 
 Whole directories are archived rather than individual keys because a restore
 needs more than the roots of trust: devices authenticate against `cas.pem` and
@@ -172,7 +171,8 @@ cannot rebuild a partial `certs/` — it refuses to run if any file there exists
 ### Restoring onto a fresh volume
 
 This is automatic. Boot a new instance with an empty data volume and the same
-`FIOSERVER_SECRET_PREFIX`; the bootstrap detects the escrow and restores
+`FIOSERVER_SECRET_PREFIX` (i.e. the escrow already populated by
+`scripts/init-secrets.sh`); the bootstrap detects it and restores
 `hmac.secret`, `auth-config.json`, `certs/` and `tuf/` byte-for-byte, so
 already-enrolled devices keep working without re-enrolment.
 
@@ -183,7 +183,7 @@ while `fioserver` is stopped.
 Check which path a boot took:
 
 ```bash
-cat /data/.bootstrap-state   # "A" reboot, "B" restored, "C" initialized
+cat /data/.bootstrap-state   # "A" reboot, "B" restored from escrow
 ```
 
 ## Backups
@@ -208,7 +208,6 @@ makes `apply` fail on a fresh account.
   available.
 - **`terraform destroy` deletes the data volume.** Snapshots and the secret
   escrow are the recovery path. There is deliberately no `prevent_destroy`, since
-  that would make `destroy` fail and leave the volume stranded.
-- **Secrets have a recovery window.** After a destroy they sit pending deletion,
-  and re-applying with the same hostname fails until they are purged or restored.
-  Set `secret_recovery_window_days = 0` in throwaway environments.
+  that would make `destroy` fail and leave the volume stranded. The secret
+  escrow itself is untouched by `destroy` — Terraform only ever reads it — so
+  re-applying against the same hostname finds it intact.

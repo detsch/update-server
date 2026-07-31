@@ -1,8 +1,7 @@
 # Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
 # SPDX-License-Identifier: BSD-3-Clause-Clear
 #
-# Copy to terraform.tfvars and edit. Real .tfvars files are gitignored, because
-# auth_config_json can carry an OAuth client secret.
+# Copy to terraform.tfvars and edit.
 
 aws_region = "us-east-1"
 ami_id     = "ami-0123456789abcdef0" # from `packer build`
@@ -14,8 +13,6 @@ gateway_hostname = "devices.example.com"
 
 # Uncomment to expose the device gateway on a non-default port.
 # gateway_port = 8443
-
-factory = "my-factory"
 
 # Set this to your Route53 zone IFF you use it for DNS. Otherwise leave this blank.
 # If this is left blank, you will have to look for the ACM certificate validation
@@ -33,21 +30,6 @@ data_volume_size = 100
 # opening port 22; leaving both empty is fine and is the default.
 # ssh_key_name     = "my-key"
 # allowed_ssh_cidr = "203.0.113.0/24"
-
-# Authentication. Leave unset for local auth with a generated admin password
-# escrowed in Secrets Manager, or provide a config as a raw JSON literal:
-#
-#   auth_config_json = <<-EOT
-#   {
-#     "Type": "github",
-#     "BaseUrl": "https://dg.example.com",
-#     "ClientId": "your-client-id",
-#     "ClientSecret": "your-client-secret"
-#   }
-#   EOT
-#
-# See docs/auth.md and contrib/auth-config-{local,github,google}.json. For OAuth
-# providers, Config.BaseUrl must be "https://dg.example.com".
 
 tags = {
   Project = "update-server"
