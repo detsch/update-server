@@ -24,7 +24,7 @@ func addSpecificFlags(cmd *cobra.Command) {
 func getSpecificApi(cmd *cobra.Command) api.SpecificConfigsApi {
 	api := api.CtxGetApi(cmd.Context()).Configs()
 	if uuid, _ := cmd.Flags().GetString("device"); len(uuid) > 0 {
-		return api.Device(uuid).SpecificConfigsApi
+		return api.Device(uuid)
 	} else if name, _ := cmd.Flags().GetString("group"); len(name) > 0 {
 		return api.Group(name)
 	}
