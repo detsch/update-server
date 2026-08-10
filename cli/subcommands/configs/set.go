@@ -125,7 +125,7 @@ func setConfigs(capi api.SpecificConfigsApi, files []string, encrypt, raw, repla
 	}
 	if encrypt {
 		if dcapi, ok := capi.(api.DeviceConfigsApi); !ok {
-			return errors.New("encrypt can only be used for device configuration")
+			return errors.New("--encrypt/-e can only be used with --device/-d")
 		} else {
 			pubkey := getEcies(dcapi)
 			for name, file := range cfg.Files {
