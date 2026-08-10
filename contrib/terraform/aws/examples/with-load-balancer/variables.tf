@@ -89,6 +89,19 @@ variable "snapshot_retention_days" {
   default     = 60
 }
 
+variable "access_logs" {
+  type = object({
+    bucket  = string
+    prefix  = optional(string, "")
+    enabled = optional(bool, true)
+  })
+  description = <<-EOT
+    S3 access logging for the UI ALB. The bucket must already exist and grant
+    the ELB service account write access. Leave unset (null) to disable.
+  EOT
+  default     = null
+}
+
 variable "tags" {
   type        = map(string)
   description = "Extra tags applied to every resource."

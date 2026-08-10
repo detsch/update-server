@@ -38,6 +38,15 @@ resource "aws_lb" "ui" {
 
   idle_timeout = var.idle_timeout
 
+  dynamic "access_logs" {
+    for_each = var.access_logs != null ? [var.access_logs] : []
+    content {
+      bucket  = access_logs.value.bucket
+      prefix  = access_logs.value.prefix
+      enabled = access_logs.value.enabled
+    }
+  }
+
   tags = merge(local.tags, { Name = "${var.name_prefix}-ui" })
 }
 

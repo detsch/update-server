@@ -85,6 +85,7 @@ module "frontend" {
   alb_security_group_id = module.network.alb_security_group_id
   certificate_arn       = module.dns.certificate_arn
   gateway_port          = var.gateway_port
+  access_logs           = var.access_logs
 
   tags = var.tags
 }
