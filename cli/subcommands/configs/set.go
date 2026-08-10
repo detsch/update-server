@@ -4,6 +4,10 @@
 package configs
 
 import (
+	"crypto/ecdsa"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,11 +17,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	ecies "github.com/foundriesio/go-ecies"
+
 	"github.com/foundriesio/update-server/cli/api"
+	"github.com/foundriesio/update-server/storage"
 )
 
 var setCmd = &cobra.Command{
-	Use:   "set [ -g <group-name> | -d <device-uuid> ] <file1=content1> [ <file2=content2> ... ]",
+	Use:   "set [ -g <group-name> | -d <device-uuid> [ -e ]] <file1=content1> [ <file2=content2> ... ]",
 	Short: "Create a global, group, or device configs",
 	Long: `Create a global, group, or device configs.
 
@@ -61,22 +68,24 @@ var setCmd = &cobra.Command{
 	Args: cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		api := getSpecificApi(cmd)
+		encrypt, _ := cmd.Flags().GetBool("encrypt")
 		raw, _ := cmd.Flags().GetBool("raw")
 		replace, _ := cmd.Flags().GetBool("replace")
 		reason, _ := cmd.Flags().GetString("reason")
-		return setConfigs(api, args, raw, replace, reason)
+		return setConfigs(api, args, encrypt, raw, replace, reason)
 	},
 }
 
 func init() {
 	ConfigsCmd.AddCommand(setCmd)
 	addSpecificFlags(setCmd)
+	setCmd.Flags().BoolP("encrypt", "e", false, "Encrypt configuration file using ECIES. Only valid for the device config.")
 	setCmd.Flags().BoolP("raw", "", false, "Use raw configuration file.")
 	setCmd.Flags().BoolP("replace", "", false, "Replace existing config rather than merge it.")
 	setCmd.Flags().StringP("reason", "m", "", "Add a message to store as the \"reason\" for this change")
 }
 
-func setConfigs(capi api.SpecificConfigsApi, files []string, raw, replace bool, reason string) error {
+func setConfigs(capi api.SpecificConfigsApi, files []string, encrypt, raw, replace bool, reason string) error {
 	var (
 		cfg  api.ConfigFileSet
 		data []byte
@@ -111,7 +120,23 @@ func setConfigs(capi api.SpecificConfigsApi, files []string, raw, replace bool, 
 				cobra.CheckErr(err)
 				content = string(data)
 			}
-			cfg.Files[name] = api.ConfigFile{Value: content, Unencrypted: true}
+			cfg.Files[name] = api.ConfigFile{Value: content, Unencrypted: !encrypt}
+		}
+	}
+	if encrypt {
+		if dcapi, ok := capi.(api.DeviceConfigsApi); !ok {
+			return errors.New("--encrypt/-e can only be used with --device/-d")
+		} else {
+			pubkey := getEcies(dcapi)
+			for name, file := range cfg.Files {
+				if file.Unencrypted {
+					continue
+				}
+				enc, err := ecies.Encrypt(rand.Reader, pubkey, []byte(file.Value), nil, nil)
+				cobra.CheckErr(err)
+				file.Value = base64.StdEncoding.EncodeToString(enc)
+				cfg.Files[name] = file
+			}
 		}
 	}
 	if !replace {
@@ -127,4 +152,19 @@ func setConfigs(capi api.SpecificConfigsApi, files []string, raw, replace bool, 
 	}
 	cobra.CheckErr(capi.Put(cfg))
 	return nil
+}
+
+func getEcies(dcapi api.DeviceConfigsApi) *ecies.PublicKey {
+	pubBytes, err := dcapi.GetPubkey()
+	cobra.CheckErr(err)
+	if len(pubBytes) == 0 {
+		cobra.CheckErr(errors.New("device did not provide its public key"))
+	}
+	pub, err := storage.PemBytesToObject([]byte(pubBytes), x509.ParsePKIXPublicKey)
+	cobra.CheckErr(err)
+	ecpub, ok := pub.(*ecdsa.PublicKey)
+	if !ok {
+		cobra.CheckErr(errors.New("device did not provide a supported ECDSA public key"))
+	}
+	return ecies.ImportECDSAPublic(ecpub)
 }

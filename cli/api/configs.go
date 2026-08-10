@@ -21,27 +21,39 @@ type ConfigsApi struct {
 	api *Api
 }
 
-type SpecificConfigsApi struct {
+type SpecificConfigsApi interface {
+	Get() (res ConfigFileSet, err error)
+	GetHistory(limit int, showFiles bool) (res []ConfigFileSet, err error)
+	Put(configs ConfigFileSet) (err error)
+}
+
+type specificConfigsApi struct {
 	api *Api
 	uri string
 }
 
-type DeviceConfigsApi struct{ SpecificConfigsApi }
+type DeviceConfigsApi struct {
+	specificConfigsApi
+	uuid string
+}
 
 func (a *Api) Configs() ConfigsApi {
 	return ConfigsApi{api: a}
 }
 
 func (a ConfigsApi) Factory() SpecificConfigsApi {
-	return SpecificConfigsApi{api: a.api, uri: "/v1/configs/factory"}
+	return specificConfigsApi{api: a.api, uri: "/v1/configs/factory"}
 }
 
 func (a ConfigsApi) Group(name string) SpecificConfigsApi {
-	return SpecificConfigsApi{api: a.api, uri: "/v1/configs/group/" + name}
+	return specificConfigsApi{api: a.api, uri: "/v1/configs/group/" + name}
 }
 
 func (a ConfigsApi) Device(uuid string) DeviceConfigsApi {
-	return DeviceConfigsApi{SpecificConfigsApi: SpecificConfigsApi{api: a.api, uri: "/v1/configs/device/" + uuid}}
+	return DeviceConfigsApi{
+		specificConfigsApi: specificConfigsApi{api: a.api, uri: "/v1/configs/device/" + uuid},
+		uuid:               uuid,
+	}
 }
 
 func (a ConfigsApi) ListGroups() (names []string, err error) {
@@ -54,23 +66,31 @@ func (a ConfigsApi) Upload(r io.Reader, opts ...HttpOption) (err error) {
 	return
 }
 
-func (a SpecificConfigsApi) Get() (res ConfigFileSet, err error) {
+func (a specificConfigsApi) Get() (res ConfigFileSet, err error) {
 	err = a.api.Get(a.uri, &res)
 	return
 }
 
-func (a SpecificConfigsApi) GetHistory(limit int, showFiles bool) (res []ConfigFileSet, err error) {
+func (a specificConfigsApi) GetHistory(limit int, showFiles bool) (res []ConfigFileSet, err error) {
 	uri := a.uri + fmt.Sprintf("/history?limit=%d&show-files=%t", limit, showFiles)
 	err = a.api.Get(uri, &res)
 	return
 }
 
-func (a SpecificConfigsApi) Put(configs ConfigFileSet) (err error) {
+func (a specificConfigsApi) Put(configs ConfigFileSet) (err error) {
 	_, err = a.api.Put(a.uri, configs)
 	return
 }
 
 func (a DeviceConfigsApi) GetApplied() (res AppliedConfigs, err error) {
 	err = a.api.Get(a.uri+"/applied", &res)
+	return
+}
+
+func (a DeviceConfigsApi) GetPubkey() (res string, err error) {
+	var d *Device
+	if d, err = a.api.Devices().Get(a.uuid); err == nil {
+		res = d.PubKey
+	}
 	return
 }
