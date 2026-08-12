@@ -3,34 +3,53 @@
 
 import json
 import uuid
+from datetime import datetime, timezone
 
 import locust
-from locust import SequentialTaskSet, task
+from locust import SequentialTaskSet, between, task
 
 from admin import PerfAdminUser  # noqa: F401  (imported for its Locust User side effects)
-from harness import DeviceUser
+from harness import DeviceConfig, DeviceUser
 
 
 @locust.tag("update")
 class UpdateFlow(SequentialTaskSet):
     """Ordered check-for-update + download flow.
 
-    Modeled on a real TUF client: timestamp -> snapshot -> targets, then
-    resolve the target name/hash and fetch it over /ostree/*. State resolved
-    by one step (e.g. the target name parsed from targets.json) is flow-scoped
-    on this TaskSet instance, not the User or a module global, so it doesn't
-    leak across unrelated tasks or other users.
+    Modeled on a real TUF client: root.json check (always fired, almost
+    always 404) → timestamp → snapshot → targets, then resolve the target
+    name/hash and fetch it over /ostree/*. State resolved by one step
+    (e.g. the target name parsed from targets.json) is flow-scoped on this
+    TaskSet instance, not the User or a module global, so it doesn't leak
+    across unrelated tasks or other users.
 
     Only meaningful once a rollout has been seeded for these devices (see
     gen-certs --seed-update) — otherwise every step 404s/400s. Run in
-    isolation with --tags update:check (timestamp/snapshot/targets only) or
-    --tags update (the full check+download sequence), or keep it out of an
-    unseeded run entirely with --exclude-tags update.
+    isolation with --tags update:check (TUF meta only) or --tags update (the
+    full check+download sequence), or keep it out of an unseeded run entirely
+    with --exclude-tags update.
     """
 
     def on_start(self) -> None:
         self._target_name = None
         self._ostree_hash = None
+
+    @task
+    @locust.tag("update:check")
+    def get_root(self) -> None:
+        # aktualizr-lite always fires a root.json check first; the server
+        # almost always returns 404 (no root stored). Mark as success
+        # explicitly so Locust doesn't count a deliberate 404 as a failure.
+        with self.user.client.get(
+            "/repo/1.root.json",
+            headers=self.user._headers(),
+            catch_response=True,
+            name="/repo/root.json",
+        ) as resp:
+            if resp.status_code in (200, 404):
+                resp.success()
+            else:
+                self.user._fail(resp, f"root.json unexpected {resp.status_code}")
 
     @task
     @locust.tag("update:check")
@@ -99,7 +118,88 @@ class UpdateFlow(SequentialTaskSet):
                 self.user._fail(resp, f"{resp.status_code}: {resp.text}")
 
 
+@locust.tag("apps")
+class AppPullFlow(SequentialTaskSet):
+    """Two-step registry pull: mTLS token mint → HEAD → GET blob.
+
+    Real device behaviour: aktualizr-lite calls POST /app-proxy-url (mTLS)
+    to obtain a one-time 16-char token (LRU cache, 10k entries, 1hr TTL),
+    then issues unauthenticated registry requests with ?token= appended.
+    The server's blobHead always returns 200; blobGet serves the file from
+    the seeded blob path or 404s if the blob hasn't been seeded.
+
+    Skips gracefully if gen-certs --seed-update was not run (no blob hash
+    available in DeviceConfig.app_blob_hash).
+
+    Only run with --tags apps or as part of the default PerfUser task set,
+    not alongside --exclude-tags apps for unseeded environments.
+    """
+
+    def on_start(self) -> None:
+        self._token = None
+        self._blob_hash = DeviceConfig.app_blob_hash
+
+    @task
+    @locust.tag("apps:token")
+    def post_app_proxy_url(self) -> None:
+        with self.user.client.post(
+            "/app-proxy-url",
+            headers=self.user._headers(),
+            catch_response=True,
+            name="/app-proxy-url",
+        ) as resp:
+            if not resp.ok:
+                self.user._fail(resp, f"app-proxy-url {resp.status_code}: {resp.text}")
+                return
+            try:
+                self._token = resp.json().get("url", "").split("token=")[-1] or None
+            except Exception:
+                self._token = None
+
+    @task
+    @locust.tag("apps:pull")
+    def head_blob(self) -> None:
+        if not self._token or not self._blob_hash:
+            return
+        with self.user.client.head(
+            f"/registry/v2/perf-app/blobs/sha256:{self._blob_hash}",
+            params={"token": self._token},
+            catch_response=True,
+            name="/registry/v2/blobs (HEAD)",
+        ) as resp:
+            # blobHead is hardcoded 200 on the server; treat anything else as failure.
+            if resp.status_code != 200:
+                self.user._fail(resp, f"blob HEAD {resp.status_code}")
+            else:
+                resp.success()
+
+    @task
+    @locust.tag("apps:pull")
+    def get_blob(self) -> None:
+        if not self._token or not self._blob_hash:
+            return
+        with self.user.client.get(
+            f"/registry/v2/perf-app/blobs/sha256:{self._blob_hash}",
+            params={"token": self._token},
+            catch_response=True,
+            name="/registry/v2/blobs (GET)",
+        ) as resp:
+            if not resp.ok:
+                self.user._fail(resp, f"blob GET {resp.status_code}: {resp.text}")
+
+
+def _rfc3339_now() -> str:
+    return datetime.now(tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 class PerfUser(DeviceUser):
+    """Stress-mode user: constant(0) wait time, maximum RPS pressure.
+
+    Boot PUTs fire in on_start (inherited from DeviceUser._boot). The task
+    weights below model steady-state traffic — not boot-phase frequency —
+    so system_info is intentionally absent from the rotation after boot.
+    """
+
     @locust.tag("device:check-in")
     def get_device(self) -> None:
         with self.client.get(
@@ -129,7 +229,7 @@ class PerfUser(DeviceUser):
             [
                 {
                     "id": str(uuid.uuid4()),
-                    "deviceTime": "2019-10-04T19:20:12Z",
+                    "deviceTime": _rfc3339_now(),
                     "eventType": {"id": "EcuDownloadStarted", "version": 0},
                     "event": {
                         "correlationId": correlation_id,
@@ -140,7 +240,7 @@ class PerfUser(DeviceUser):
                 },
                 {
                     "id": str(uuid.uuid4()),
-                    "deviceTime": "2019-10-04T19:20:13Z",
+                    "deviceTime": _rfc3339_now(),
                     "eventType": {"id": "EcuDownloadCompleted", "version": 0},
                     "event": {
                         "correlationId": correlation_id,
@@ -161,6 +261,38 @@ class PerfUser(DeviceUser):
             if not resp.ok:
                 self._fail(resp, f"{resp.status_code}: {resp.text}")
 
+    @locust.tag("device:apps-states")
+    def post_apps_states(self) -> None:
+        # appsStatesInfo validates RFC3339 deviceTime and strict AppsStates shape.
+        with self.client.post(
+            "/apps-states",
+            json={
+                "deviceTime": _rfc3339_now(),
+                "ostree": "0" * 64,
+                "apps": {
+                    "perf-app": {
+                        "uri": "hub.foundries.io/perf-factory/perf-app@sha256:" + "a" * 64,
+                        "state": "healthy",
+                        "services": [
+                            {
+                                "name": "perf-svc",
+                                "hash": "b" * 64,
+                                "health": "healthy",
+                                "image": "hub.foundries.io/perf-factory/perf-app:latest",
+                                "state": "running",
+                                "status": "Up 5 minutes",
+                            }
+                        ],
+                    }
+                },
+            },
+            headers=self._headers(),
+            catch_response=True,
+            name="/apps-states",
+        ) as resp:
+            if not resp.ok:
+                self._fail(resp, f"{resp.status_code}: {resp.text}")
+
     # Explicit weighted mapping instead of @task(n) decorators: get_tasks_from_
     # base_classes() (locust/user/task.py) populates .tasks from *either* an
     # explicit `tasks = {...}` dict *or* @task-decorated methods found by
@@ -170,8 +302,32 @@ class PerfUser(DeviceUser):
         get_device: 5,
         get_config: 2,
         post_events: 3,
+        post_apps_states: 2,
+        AppPullFlow: 1,
         UpdateFlow: 1,
     }
+
+
+class RealisticDeviceUser(PerfUser):
+    """Realistic-cadence user: models actual aktualizr-lite + fioconfig polling.
+
+    Two daemons run every ~300s each; with ±60s jitter the effective poll
+    interval is 240–360s. This class uses between(240, 360) so each
+    simulated device fires tasks at its own independent pace — not all
+    simultaneously like constant(0) PerfUser does.
+
+    boot_jitter (--boot-jitter / BOOT_JITTER) scatters the initial boot PUTs
+    across a configurable window so 5000 devices don't all hit the SQLite
+    writer in the same two-second ramp-up burst. Set to 0 (default) to
+    replicate a hard reboot of the entire fleet, or to 30 (realistic-cadence
+    scene default) for staggered startup.
+
+    Run alongside PerfUser with --tags update for complementary stress + real
+    measurements, or standalone with SCENE=realistic-cadence to measure only
+    realistic-cadence behaviour.
+    """
+
+    wait_time = between(240, 360)
 
 
 class PerfConfigWarmUser(DeviceUser):
@@ -182,7 +338,7 @@ class PerfConfigWarmUser(DeviceUser):
     timestamp; without one, /config 204s before the If-Modified-Since check
     is ever reached and this scene degenerates to an always-cold GET. Kept
     as a separate User class (not a PerfUser task) so it never dilutes
-    PerfUser's benchmarked 5:2:3:1 task ratio depended on by other scenes.
+    PerfUser's benchmarked task ratio depended on by other scenes.
     """
 
     def on_start(self) -> None:
@@ -207,4 +363,3 @@ class PerfConfigWarmUser(DeviceUser):
                 self._fail(resp, f"{resp.status_code}: {resp.text}")
                 return
             self._last_modified = resp.headers.get("Date")
-
