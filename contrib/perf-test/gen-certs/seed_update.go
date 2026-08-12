@@ -80,6 +80,10 @@ func seedUpdate(datadir, tag, updateName string, uuids []string, pubkeys map[str
 	if err != nil {
 		return fmt.Errorf("write ostree fixture content: %w", err)
 	}
+	appBlobHash, err := writeFixtureAppBlob(datadir, fs, tag, updateName)
+	if err != nil {
+		return fmt.Errorf("write app blob fixture: %w", err)
+	}
 
 	targets, err := targetsJSON(targetName, ostreeHash)
 	if err != nil {
@@ -119,6 +123,8 @@ func seedUpdate(datadir, tag, updateName string, uuids []string, pubkeys map[str
 
 	fmt.Printf("seeded update %s/%s (target %s) and assigned it to %d device(s)\n",
 		tag, updateName, targetName, len(uuids))
+	fmt.Printf("seeded app blob sha256:%s (accessible to all %d devices via AppPullFlow)\n",
+		appBlobHash, len(uuids))
 	return nil
 }
 
@@ -237,4 +243,43 @@ func rootJSON(expires string) string {
   },
   "signatures": []
 }`, expires)
+}
+
+// writeFixtureAppBlob seeds a single app blob file into the apps blob store
+// so AppPullFlow's GET /registry/v2/.../blobs/sha256:<hash> can serve real
+// bytes instead of 404ing. blobGet resolves the path via
+// device.GetAppsFilePath("blobs/sha256/<hash>") — which expands to
+// fs.Updates.Apps.FilePath(device.Tag, device.UpdateName, "blobs/sha256/<hash>").
+//
+// The hash is written to <datadir>/app-blob-hash.txt so harness.py can read
+// it into DeviceConfig.app_blob_hash at init time (avoids hard-coding the
+// hash in the locustfile).
+func writeFixtureAppBlob(datadir string, fs *storage.FsHandle, tag, updateName string) (hexHash string, err error) {
+	// 64KiB synthetic layer — large enough to be a real download but not so
+	// large it bloats the fixture data directory.
+	content := make([]byte, 64*1024)
+	for i := range content {
+		content[i] = byte(i ^ 0xa5)
+	}
+	sum := sha256.Sum256(content)
+	hexHash = hex.EncodeToString(sum[:])
+
+	// Apps.FilePath uses the same (tag, updateName, relative) convention as
+	// Ostree.FilePath and Tuf.FilePath — blobGet calls exactly this with the
+	// device's resolved tag+updateName, so writing here == readable there.
+	blobRel := filepath.Join("blobs", "sha256", hexHash)
+	blobPath := fs.Updates.Apps.FilePath(tag, updateName, blobRel)
+	if err := os.MkdirAll(filepath.Dir(blobPath), 0o755); err != nil {
+		return "", fmt.Errorf("mkdir blob dir: %w", err)
+	}
+	if err := os.WriteFile(blobPath, content, 0o644); err != nil {
+		return "", fmt.Errorf("write blob: %w", err)
+	}
+
+	// Write the hash sidecar so harness.py can pick it up at runtime.
+	hashFile := filepath.Join(datadir, "app-blob-hash.txt")
+	if err := os.WriteFile(hashFile, []byte(hexHash+"\n"), 0o644); err != nil {
+		return "", fmt.Errorf("write app-blob-hash.txt: %w", err)
+	}
+	return hexHash, nil
 }
