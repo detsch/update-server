@@ -1,0 +1,43 @@
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#
+# Copy to terraform.tfvars and edit.
+
+aws_region = "us-east-1"
+ami_id     = "ami-0123456789abcdef0" # from `packer build`
+
+# The UI and the gateway need different names: the ALB and the NLB cannot share
+# one DNS record. Both must be in the hosted zone below.
+hostname         = "dg.example.com"
+gateway_hostname = "devices.example.com"
+
+# Uncomment to expose the device gateway on a non-default port.
+# gateway_port = 8443
+
+# Set this to your Route53 zone IFF you use it for DNS. Otherwise leave this blank.
+# If this is left blank, you will have to look for the ACM certificate validation
+# code and create a CNAME record with your DNS provider. The CNAME will be in the
+# form: _randomValue.dg.example.com -> CNAME(dg.example.com).
+# If you aren't using Route53, you'll also need to create CNAME records for your
+# hostname and gateway_hostname above that point to the load balancer DNS names
+# that get created by this recipe.
+hosted_zone_id = ""
+
+instance_type    = "t3.small"
+data_volume_size = 100
+
+# Uncomment to enable S3 access logging on the UI ALB. The bucket must
+# already exist and grant the ELB service account write access.
+# access_logs = {
+#   bucket = "my-alb-logs-bucket"
+#   prefix = "fioserver-ui"
+# }
+
+# Access. Prefer SSM (`aws ssm start-session --target <instance-id>`) over
+# opening port 22; leaving both empty is fine and is the default.
+# ssh_key_name     = "my-key"
+# allowed_ssh_cidr = "203.0.113.0/24"
+
+tags = {
+  Project = "update-server"
+}

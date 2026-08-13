@@ -1,0 +1,26 @@
+# Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+# SPDX-License-Identifier: BSD-3-Clause-Clear
+#
+# Format the data volume on first attach, and only then.
+#
+# The volume is attached as /dev/sdf, but Nitro instances expose it as
+# /dev/nvme1n1 -- and the number depends on attachment order. Neither path is
+# stable, so this unit finds the one non-root disk that has no filesystem
+# signature, formats it with the label everything else keys off, and refuses to
+# touch anything that already carries data.
+
+[Unit]
+Description=Initialize the fioserver data volume
+DefaultDependencies=no
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+Before=data.mount
+ConditionPathExists=!/dev/disk/by-label/fiodata
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/fioserver-volume-init
+
+[Install]
+WantedBy=local-fs.target
