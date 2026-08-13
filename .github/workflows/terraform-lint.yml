@@ -1,0 +1,74 @@
+name: Terraform Lint
+on:
+  pull_request:
+    paths:
+      - 'contrib/terraform/**'
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.12.2"
+          terraform_wrapper: false
+
+      - name: terraform fmt
+        run: terraform fmt -check -recursive contrib/terraform
+
+      - name: terraform init & validate
+        run: |
+          set -e
+          for dir in $(find contrib/terraform -name '*.tf' -exec dirname {} \; | sort -u); do
+            echo "::group::terraform validate $dir"
+            (cd "$dir" && terraform init -backend=false -input=false && terraform validate)
+            echo "::endgroup::"
+          done
+
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.55.1
+
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          tflint --init --config "$GITHUB_WORKSPACE/contrib/terraform/.tflint.hcl"
+          for dir in $(find contrib/terraform -name '*.tf' -exec dirname {} \; | sort -u); do
+            echo "::group::tflint $dir"
+            tflint --config "$GITHUB_WORKSPACE/contrib/terraform/.tflint.hcl" --chdir "$dir"
+            echo "::endgroup::"
+          done
+
+  packer:
+    name: packer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone the code
+        uses: actions/checkout@v4
+
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@v3
+        with:
+          version: "1.13.1"
+
+      - name: packer fmt & validate
+        run: |
+          set -e
+          for f in $(find contrib/terraform -name '*.pkr.hcl'); do
+            echo "::group::packer $f"
+            packer fmt -check "$f"
+            packer init "$f"
+            packer validate -var fioserver_version=ci-lint "$f"
+            echo "::endgroup::"
+          done
