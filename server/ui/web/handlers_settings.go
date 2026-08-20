@@ -19,14 +19,16 @@ func (h handlers) settings(c echo.Context) error {
 
 	ctx := struct {
 		baseCtx
-		Tokens     []users.Token
-		ScopesList []string
-		LocalAuth  bool
+		Tokens       []users.Token
+		ScopesList   []string
+		LocalAuth    bool
+		DeviceApiUrl string
 	}{
-		baseCtx:    h.baseCtx(c, "Settings", "settings"),
-		Tokens:     tokens,
-		ScopesList: session.User.AllowedScopes.ToSlice(),
-		LocalAuth:  h.provider.Name() == "local",
+		baseCtx:      h.baseCtx(c, "Settings", "settings"),
+		Tokens:       tokens,
+		ScopesList:   session.User.AllowedScopes.ToSlice(),
+		LocalAuth:    h.provider.Name() == "local",
+		DeviceApiUrl: c.Scheme() + "://" + c.Request().Host + "/v1/devices",
 	}
 	return c.Render(http.StatusOK, "settings.html", ctx)
 }
