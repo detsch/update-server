@@ -41,7 +41,7 @@ func (h handlers) configsList(c echo.Context) error {
 }
 
 func (h handlers) configsGlobalHistory(c echo.Context) error {
-	openIndex, err := echo.QueryParamOr[int](c, "open", -1)
+	openIndex, err := echo.QueryParamOr(c, "open", -1)
 	if err != nil {
 		return h.handleUnexpected(c, err)
 	}
@@ -90,7 +90,7 @@ func (h handlers) configsGroupItem(c echo.Context) error {
 
 func (h handlers) configsGroupItemHistory(c echo.Context) error {
 	group := c.Param("name")
-	openIndex, err := echo.QueryParamOr[int](c, "open", -1)
+	openIndex, err := echo.QueryParamOr(c, "open", -1)
 	if err != nil {
 		return h.handleUnexpected(c, err)
 	}
@@ -161,7 +161,7 @@ func (h handlers) configsDeviceItemApplied(c echo.Context) error {
 
 func (h handlers) configsDeviceItemHistory(c echo.Context) error {
 	uuid := c.Param("uuid")
-	openIndex, err := echo.QueryParamOr[int](c, "open", -1)
+	openIndex, err := echo.QueryParamOr(c, "open", -1)
 	if err != nil {
 		return h.handleUnexpected(c, err)
 	}
