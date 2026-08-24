@@ -63,7 +63,7 @@ func TestSeed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, factoryHistory, 1, "expected factory config to be seeded")
 
-	us, err := users.NewStorage(db, fs)
+	us, err := users.NewStorage(db, fs, &storage.AuthConfig{})
 	require.NoError(t, err)
 	require.NoError(t, seedUsers(us))
 	u, err := us.Get("seed-operator")

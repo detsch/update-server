@@ -72,6 +72,13 @@ func (u User) GenerateToken(description string, expires int64, scopes Scopes) (*
 		return nil, fmt.Errorf("requested scopes %s exceed allowed scopes %s", scopes.String(), u.AllowedScopes.String())
 	}
 
+	if u.h.authConfig.MaxTokenLifetimeDays > 0 {
+		maxExpires := time.Now().Add(time.Duration(u.h.authConfig.MaxTokenLifetimeDays) * 24 * time.Hour).Unix()
+		if expires > maxExpires {
+			return nil, fmt.Errorf("requested expiration exceeds maximum allowed expiration %d days", u.h.authConfig.MaxTokenLifetimeDays)
+		}
+	}
+
 	value := rand.Text()
 	key, err := u.h.genTokenKey(value)
 	if err != nil {

@@ -37,7 +37,7 @@ func NewServer(ctx context.Context, db *storage.DbHandle, fs *storage.FsHandle, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to load %s storage: %w", serverName, err)
 	}
-	users, err := users.NewStorage(db, fs)
+	users, err := users.NewStorage(db, fs, authConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize users storage: %w", err)
 	}

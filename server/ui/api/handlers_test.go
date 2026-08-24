@@ -917,7 +917,7 @@ func TestApiRolloutDaemon(t *testing.T) {
 	require.Nil(t, tc.fs.Auth.InitHmacSecret())
 	db, err := apiStorage.NewDb(filepath.Join(t.TempDir(), apiStorage.DbFile))
 	require.Nil(t, err)
-	usersS, err := users.NewStorage(db, tc.fs)
+	usersS, err := users.NewStorage(db, tc.fs, nil)
 	require.Nil(t, err)
 	daemons := daemons.New(tc.ctx, tc.api, usersS, daemons.WithRolloverInterval(20*time.Millisecond))
 

@@ -63,7 +63,7 @@ func (c UserAddCmd) Run(args CommonArgs) error {
 		return fmt.Errorf("failed to load database: %w", err)
 	}
 
-	userStorage, err := users.NewStorage(db, fs)
+	userStorage, err := users.NewStorage(db, fs, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user storage: %w", err)
 	}
