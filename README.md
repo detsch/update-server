@@ -8,6 +8,23 @@ There are two primary use cases for this project:
 This project handles both use cases by implementing all the APIs used by Foundries.io update agents.
 The project also includes a user-facing REST API and Web UI for managing devices and updates.
 
+## Features
+
+ * mTLS "device gateway" that supports Foundries.io update agents [aktualizr-lite](https://github.com/foundriesio/aktualizr-lite) and [fioup](https://github.com/foundriesio/fioup)
+ * Device registration API compatible with [fio-device-register](https://github.com/foundriesio/lmp-device-register) and fioup.
+ * Configuration management and remote actions compatible with [fioconfig](https://github.com/foundriesio/fioconfig)
+ * Updates managed and signed using The Update Framework (TUF)
+ * Pluggable authentication framework supporting:
+   - Github SSO
+   - Google SSO
+   - Locally managed users
+ * REST [API](./docs/api.md)
+ * Web UI and command line tooling
+
+The whole project runs in a single Golang process and uses SQLite to ensure 
+admininstration and operation of the service is as easy as possible while
+still scaling to the needs of non-hyperscalers.
+
 ## Quick start
 Follow the [Quick Start](./docs/quick-start.md) guide to get a server running in development mode.
 
