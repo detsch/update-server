@@ -54,12 +54,7 @@ const AuthCallbackPath = "/auth/callback"
 
 var providers map[string]Provider
 
-func NewProvider(e *echo.Echo, db *storage.DbHandle, fs *storage.FsHandle, users *users.Storage, pageCtx PageContextBuilder) (Provider, error) {
-	authConfig, err := fs.Auth.GetAuthConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get auth config: %w", err)
-	}
-
+func NewProvider(e *echo.Echo, db *storage.DbHandle, authConfig *storage.AuthConfig, users *users.Storage, pageCtx PageContextBuilder) (Provider, error) {
 	if provider, ok := providers[authConfig.Type]; ok {
 		if err := provider.Configure(e, users, authConfig, pageCtx); err != nil {
 			return nil, fmt.Errorf("failed to configure provider `%s`: %w", authConfig.Type, err)

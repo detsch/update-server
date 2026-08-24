@@ -24,6 +24,7 @@ type RateLimitConfig struct {
 type AuthConfig struct {
 	Type                 string
 	SessionTimeoutHours  int // Default is 48 hours
+	MaxTokenLifetimeDays int
 	NewUserDefaultScopes []string
 	RateLimits           RateLimitConfig
 	Config               json.RawMessage

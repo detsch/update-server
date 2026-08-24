@@ -23,7 +23,7 @@ func TestNewStorage(t *testing.T) {
 
 	require.Nil(t, fs.Auth.InitHmacSecret())
 
-	users, err := NewStorage(db, fs)
+	users, err := NewStorage(db, fs, nil)
 	require.Nil(t, err)
 	require.NotNil(t, users)
 
@@ -107,7 +107,8 @@ func TestTokens(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, fs.Auth.InitHmacSecret())
 
-	users, err := NewStorage(db, fs)
+	cfg := storage.AuthConfig{}
+	users, err := NewStorage(db, fs, &cfg)
 	require.Nil(t, err)
 	require.NotNil(t, users)
 
@@ -123,6 +124,14 @@ func TestTokens(t *testing.T) {
 	expires := time.Now().Add(1 * time.Hour).Unix()
 	t1, err := u.GenerateToken("desc", expires, ScopeDevicesR)
 	require.Nil(t, err)
+
+	cfg.MaxTokenLifetimeDays = 1
+	expires = time.Now().Add(36 * time.Hour).Unix()
+	_, err = u.GenerateToken("desc", expires, ScopeDevicesR)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "requested expiration exceeds maximum allowed expiration 1 days")
+
+	expires = time.Now().Add(1 * time.Hour).Unix()
 
 	time.Sleep(time.Second)
 	expired := time.Now().Add(-1 * time.Hour).Unix()
@@ -189,7 +198,7 @@ func TestGc(t *testing.T) {
 	require.Nil(t, err)
 	require.Nil(t, fs.Auth.InitHmacSecret())
 
-	users, err := NewStorage(db, fs)
+	users, err := NewStorage(db, fs, &storage.AuthConfig{})
 	require.Nil(t, err)
 	require.NotNil(t, users)
 

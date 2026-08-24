@@ -54,6 +54,8 @@ type Storage struct {
 
 	hmacSecret []byte
 
+	authConfig *storage.AuthConfig
+
 	stmtUserCreate    stmtUserCreate
 	stmtUserGetById   stmtUserGetById
 	stmtUserGetByName stmtUserGetByName
@@ -73,7 +75,7 @@ type Storage struct {
 	stmtTokenLookup        stmtTokenLookup
 }
 
-func NewStorage(db *storage.DbHandle, fs *storage.FsHandle) (*Storage, error) {
+func NewStorage(db *storage.DbHandle, fs *storage.FsHandle, authConfig *storage.AuthConfig) (*Storage, error) {
 	hmacSecret, err := fs.Auth.GetHmacSecret()
 	if err != nil {
 		return nil, fmt.Errorf("unable to read HMAC secret for API tokens: %w", err)
@@ -82,6 +84,7 @@ func NewStorage(db *storage.DbHandle, fs *storage.FsHandle) (*Storage, error) {
 		db:         db,
 		fs:         fs,
 		hmacSecret: hmacSecret,
+		authConfig: authConfig,
 	}
 
 	if err := db.InitStmt(
