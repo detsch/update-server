@@ -27,6 +27,12 @@ type daemon interface {
 
 func NewServer(ctx context.Context, db *storage.DbHandle, fs *storage.FsHandle, bindAddr, gatewayAddr string) (server.Server, error) {
 	log := context.CtxGetLog(ctx)
+
+	authConfig, err := fs.Auth.GetAuthConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get auth config: %w", err)
+	}
+
 	strg, err := api.NewStorage(db, fs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load %s storage: %w", serverName, err)
@@ -44,7 +50,7 @@ func NewServer(ctx context.Context, db *storage.DbHandle, fs *storage.FsHandle, 
 	branding := webHandlers.LoadBranding(brandingData)
 	pageBuilder := webHandlers.NewPageBuilder(branding)
 
-	provider, err := auth.NewProvider(e, db, fs, users, pageBuilder)
+	provider, err := auth.NewProvider(e, db, authConfig, users, pageBuilder)
 	if err != nil {
 		return nil, err
 	}
