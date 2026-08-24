@@ -122,3 +122,8 @@ These values can be configured via `Config.RateLimits`:
 * `AttemptsBlockDurationSec` — Set how long to block an IP that has been rate-limited by `AttemptsPerSecond`. The default will reject an IP for 30 seconds if it exceeds 2 authentication attempts per second.
 * `BadAuthLimit` — Track how many bad password operations are made from a given account. The default is 5. If this value is exceeded, the given IP will be blocked for `BadAuthBlockDurationSec` from performing password related operations.
 * `BadAuthBlockDurationSec` — Set how long to block an IP from performing authentication operations after exceeding `BadAuthLimit`. The default is 300 (5 minutes).
+
+## Advanced Settings
+* `SessionTimeoutHours` - Set to how long a web session should be valid. The default is 48 hours.
+* `MaxTokenLifetimeDays` - Set to how long an API token can be valid. The default is 0 - tokens can live forever.
+* `NewUserDefaultScopes` - The scopes to assign newly created users. Each auth-config snippet includes recommended values.
