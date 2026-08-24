@@ -341,10 +341,10 @@ func validateConfigSet(c echo.Context, denySotaOverride bool) (reason string, co
 
 func validateConfigHistoryParams(c echo.Context) (limit int, showFiles bool, err error) {
 	var err1 error
-	if showFiles, err1 = echo.QueryParamOr[bool](c, "show-files", false); err1 != nil {
+	if showFiles, err1 = echo.QueryParamOr(c, "show-files", false); err1 != nil {
 		err = fmt.Errorf("invalid show-files parameter: %w", err1)
 	}
-	if limit, err1 = echo.QueryParamOr[int](c, "limit", 0); err1 != nil {
+	if limit, err1 = echo.QueryParamOr(c, "limit", 0); err1 != nil {
 		err = fmt.Errorf("invalid limit parameter: %w", err1)
 	} else if limit < 1 {
 		limit = ConfigHistoryLimit
