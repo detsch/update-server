@@ -99,5 +99,5 @@ func getConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".config", "satcli.yaml"), nil
+	return filepath.Join(home, ".config", "fiocli.yaml"), nil
 }
