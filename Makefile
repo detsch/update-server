@@ -3,6 +3,8 @@ COMMIT?=$(shell git describe --tags HEAD)$(shell git diff --quiet || echo '+dirt
 # Use linker flags to provide commit info
 LDFLAGS=-ldflags "-X=github.com/foundriesio/update-server/version.Version=$(COMMIT)"
 
+all: fiocli fioserver
+
 build-cli: fiocli-linux-amd64 fiocli-linux-arm64 fiocli-windows-amd64.exe fiocli-windows-arm64.exe fiocli-darwin-arm64 fiocli-darwin-amd64
 
 HOST_OS:=$(shell go env GOOS)
