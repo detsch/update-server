@@ -9,7 +9,6 @@ import (
 	"github.com/foundriesio/update-server/storage"
 	"github.com/foundriesio/update-server/storage/api"
 	"github.com/foundriesio/update-server/storage/gateway"
-	"github.com/foundriesio/update-server/storage/users"
 	"github.com/stretchr/testify/require"
 )
 
@@ -63,7 +62,10 @@ func TestSeed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, factoryHistory, 1, "expected factory config to be seeded")
 
-	us, err := users.NewStorage(db, fs, &storage.AuthConfig{})
+	// Use openUserStorage, exactly as main() does, so the AuthConfig it wires
+	// up is exercised: seedUsers generates an API token for seed-operator,
+	// which panics if openUserStorage passes a nil *storage.AuthConfig.
+	us, err := openUserStorage(datadir)
 	require.NoError(t, err)
 	require.NoError(t, seedUsers(us))
 	u, err := us.Get("seed-operator")
