@@ -5,6 +5,12 @@ LDFLAGS=-ldflags "-X=github.com/foundriesio/update-server/version.Version=$(COMM
 
 build-cli: fiocli-linux-amd64 fiocli-linux-arm64 fiocli-windows-amd64.exe fiocli-windows-arm64.exe fiocli-darwin-arm64 fiocli-darwin-amd64
 
+HOST_OS:=$(shell go env GOOS)
+HOST_ARCH:=$(shell go env GOARCH)
+HOST_EXT:=$(if $(filter windows,$(HOST_OS)),.exe,)
+
+fiocli: fiocli-$(HOST_OS)-$(HOST_ARCH)$(HOST_EXT)
+
 fioserver:
 	go build $(LDFLAGS) -o bin/$@ github.com/foundriesio/update-server/cmd/server
 
