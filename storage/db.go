@@ -180,6 +180,19 @@ func createTables(db *sql.DB) error {
 			BEGIN
 				SELECT RAISE(ABORT, '%s');
 			END;
+
+		CREATE TABLE oauth2_device_flow(
+			device_code        VARCHAR(64) NOT NULL PRIMARY KEY,
+			user_code          VARCHAR(16) NOT NULL UNIQUE,
+			expires_at         INT,
+			token_expires      INT,
+			token_description  VARCHAR(80),
+			scopes             TEXT,
+			user_id            INT,
+			authorized         BOOL DEFAULT 0,
+			denied             BOOL DEFAULT 0,
+			FOREIGN KEY(user_id) REFERENCES user(id)
+		) WITHOUT ROWID;
 	`
 	sqlStmt = fmt.Sprintf(sqlStmt, ErrUpdateInUse.Error())
 	if _, err := db.Exec(sqlStmt); err != nil {

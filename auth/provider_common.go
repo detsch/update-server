@@ -4,6 +4,7 @@
 package auth
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -52,7 +53,17 @@ func (p *commonProvider) GetUser(c echo.Context) (*users.User, error) {
 				return nil, fmt.Errorf("invalid authorization header")
 			}
 			authToken = parts[1]
+
+			if c.Request().Method == http.MethodPost && c.Request().URL.Path == "/v1/devices" {
+				// lmp-device-register with oauth2-device-flow sends the token b64encoded
+				decoded, err := base64.StdEncoding.DecodeString(authToken)
+				if err != nil {
+					return nil, fmt.Errorf("invalid base64 token: %w", err)
+				}
+				authToken = string(decoded)
+			}
 		}
+
 		user, err := p.users.GetByToken(authToken)
 		if err != nil {
 			p.rateLimiter.FlagBadOperation(c)
@@ -93,4 +104,8 @@ func (p *commonProvider) GetSession(c echo.Context) (*Session, error) {
 		return nil, p.renderer.renderLoginPage(c, err.Error())
 	}
 	return nil, p.renderer.renderLoginPage(c, "")
+}
+
+func (p *commonProvider) GetRateLimiterMiddleware() echo.MiddlewareFunc {
+	return p.rateLimiter.Middleware
 }

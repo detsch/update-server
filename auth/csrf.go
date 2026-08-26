@@ -46,6 +46,10 @@ func CsrfCheck(next echo.HandlerFunc) echo.HandlerFunc {
 			return next(c)
 		}
 
+		if c.Path() == "/oauth2/authorization/device/" || c.Path() == "/oauth2/token/" {
+			return next(c)
+		}
+
 		cookie, err := c.Cookie(CsrfCookieName)
 		if err != nil || cookie.Value == "" {
 			return c.String(http.StatusForbidden, "Missing CSRF cookie")
