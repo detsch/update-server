@@ -8,7 +8,7 @@ on:
 
 jobs:
   qcom-preflight-checks:
-    uses: qualcomm/qcom-reusable-workflows/.github/workflows/reusable-qcom-preflight-checks-orchestrator.yml@v2
+    uses: qualcomm/qcom-reusable-workflows/.github/workflows/reusable-qcom-preflight-checks-orchestrator.yml@b070a366a3cfc48e398e7008dab2590fa343daeb # v2
     with:
       enable-semgrep-scan: true
       enable-dependency-review: true
