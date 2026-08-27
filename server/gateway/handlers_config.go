@@ -6,6 +6,7 @@ package gateway
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
@@ -46,6 +47,11 @@ func (h handlers) configPatch(c echo.Context) error {
 
 	if len(newC.Files) == 0 {
 		return EchoError(c, nil, http.StatusBadRequest, "no config files provided")
+	}
+
+	if !storage.ValidConfigsReasonRegex.MatchString(newC.Reason) {
+		err := fmt.Errorf("reason must match pattern: %s", storage.ValidConfigsReasonRegex.String())
+		return EchoError(c, err, http.StatusBadRequest, err.Error())
 	}
 
 	files, err := d.GetDeviceConfig()

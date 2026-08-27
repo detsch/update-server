@@ -28,8 +28,9 @@ var (
 	NewDb = storage.NewDb
 	NewFs = storage.NewFs
 
-	TestIdRegex        = storage.TestIdRegex
-	ValidCorrelationId = storage.ValidCorrelationId
+	TestIdRegex             = storage.TestIdRegex
+	ValidCorrelationId      = storage.ValidCorrelationId
+	ValidConfigsReasonRegex = storage.ValidConfigsReasonRegex
 )
 
 const (

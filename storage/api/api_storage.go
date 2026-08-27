@@ -70,6 +70,8 @@ var (
 	ValidCorrelationId = storage.ValidCorrelationId
 	TestIdRegex        = storage.TestIdRegex
 
+	ValidConfigsReasonRegex = storage.ValidConfigsReasonRegex
+
 	IsDbError             = storage.IsDbError
 	ErrDbConstraintUnique = storage.ErrDbConstraintUnique
 	ErrInvalidUpdate      = storage.ErrInvalidUpdate

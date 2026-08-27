@@ -417,7 +417,19 @@ func TestConfigPatch(t *testing.T) {
 		Files:  []ConfigFileCreate{{Name: "not-a-real-file", Value: "x"}},
 	})
 
-	// Neither of the rejected requests should have created a device config
+	// A reason containing characters outside the allowlist (e.g. a newline) is rejected
+	_ = tc.PATCH("/config", 400, ConfigCreate{
+		Reason: "line1\nline2:evil:stuff",
+		Files:  []ConfigFileCreate{{Name: "wireguard-client", Value: "x"}},
+	})
+
+	// A reason exceeding the maximum length is rejected
+	_ = tc.PATCH("/config", 400, ConfigCreate{
+		Reason: strings.Repeat("x", 201),
+		Files:  []ConfigFileCreate{{Name: "wireguard-client", Value: "x"}},
+	})
+
+	// None of the rejected requests should have created a device config
 	_ = tc.GET("/config", 204)
 
 	// Add a wireguard-client config file

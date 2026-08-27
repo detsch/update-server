@@ -134,6 +134,11 @@ type AppsStates struct {
 
 var TestIdRegex = regexp.MustCompile(`^[A-Za-z0-9\-\_]{15,48}$`)
 
+// ValidConfigsReasonRegex allows alphanum + basic punctuation + space, capped
+// at 200 characters. Important: no newlines - reasons are stored in an
+// append-only, newline-delimited journal.
+var ValidConfigsReasonRegex = regexp.MustCompile(`^[a-zA-Z0-9_ \,\.\-\:\;\'\"]{0,200}$`)
+
 type TargetTestResult struct {
 	Name    string             `json:"name"`
 	Status  string             `json:"status"`
