@@ -7,6 +7,8 @@ import (
 	"regexp"
 )
 
+const ConfigHistoryLimit int = 10
+
 // DeviceUpdateEvent represents update events that devices send the
 // device-gateway.
 type DeviceUpdateEvent struct {
