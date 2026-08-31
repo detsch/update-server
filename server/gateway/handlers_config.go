@@ -6,7 +6,9 @@ package gateway
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,6 +17,75 @@ import (
 
 	storage "github.com/foundriesio/update-server/storage/gateway"
 )
+
+type ConfigFileCreate struct {
+	Name        string   `json:"name"`
+	OnChanged   []string `json:"on-changed"`
+	Value       string   `json:"value"`
+	Unencrypted *bool    `json:"unencrypted"`
+}
+type ConfigCreate struct {
+	Reason string             `json:"reason"`
+	Files  []ConfigFileCreate `json:"files"`
+}
+
+// @Summary Update device's current configuration
+// @Produce plain
+// @Accept  json
+// @Param   config body ConfigCreate true "Config create"
+// @Success 201 ""
+// @Router  /config [patch]
+func (h handlers) configPatch(c echo.Context) error {
+	req := c.Request()
+	ctx := req.Context()
+	d := CtxGetDevice(ctx)
+
+	var newC ConfigCreate
+	if err := ReadJsonBody(c, &newC); err != nil {
+		return err
+	}
+
+	if len(newC.Files) == 0 {
+		return EchoError(c, nil, http.StatusBadRequest, "no config files provided")
+	}
+
+	if !storage.ValidConfigsReasonRegex.MatchString(newC.Reason) {
+		err := fmt.Errorf("reason must match pattern: %s", storage.ValidConfigsReasonRegex.String())
+		return EchoError(c, err, http.StatusBadRequest, err.Error())
+	}
+
+	files, err := d.GetDeviceConfig()
+	if err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "failed to fetch device config")
+	}
+
+	validNames := []string{"wireguard-client", "fio-remote-actions"}
+
+	for _, newFile := range newC.Files {
+		if !slices.Contains(validNames, newFile.Name) {
+			return EchoError(c, nil, http.StatusBadRequest, "invalid config file name")
+		}
+		unencrypted := false
+		if newFile.Unencrypted != nil {
+			unencrypted = *newFile.Unencrypted
+		}
+		files[newFile.Name] = ConfigFile{
+			OnChanged:   newFile.OnChanged,
+			Value:       newFile.Value,
+			Unencrypted: unencrypted,
+		}
+	}
+
+	data, err := json.Marshal(files)
+	if err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "failed to marshal config JSON")
+	}
+	if err := d.SaveDeviceConfig(newC.Reason, string(data)); err != nil {
+		return EchoError(c, err, http.StatusInternalServerError, "failed to save device config")
+	}
+
+	return c.String(http.StatusCreated, "")
+}
 
 type ConfigFile = storage.ConfigFile
 

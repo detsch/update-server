@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/foundriesio/update-server/storage"
@@ -27,8 +28,9 @@ var (
 	NewDb = storage.NewDb
 	NewFs = storage.NewFs
 
-	TestIdRegex        = storage.TestIdRegex
-	ValidCorrelationId = storage.ValidCorrelationId
+	TestIdRegex             = storage.TestIdRegex
+	ValidCorrelationId      = storage.ValidCorrelationId
+	ValidConfigsReasonRegex = storage.ValidConfigsReasonRegex
 )
 
 const (
@@ -54,6 +56,7 @@ const (
 
 	// Per config class files/dirs
 	ConfigSotaOverride = storage.ConfigSotaOverride
+	ConfigHistoryLimit = storage.ConfigHistoryLimit
 )
 
 type Storage struct {
@@ -201,6 +204,28 @@ func (d Device) GetConfigs() (configs [3]*storage.ConfigFileSet, timestamp int64
 		configs[2] = loadConfig(history)
 	}
 	return
+}
+
+func (d Device) GetDeviceConfig() (map[string]ConfigFile, error) {
+	history, err := d.storage.fs.Configs.ReadDeviceConfigHistory(d.Uuid, 1, true)
+	if err != nil {
+		return nil, err
+	}
+	if len(history) == 0 {
+		return map[string]ConfigFile{}, nil
+	}
+
+	var files map[string]ConfigFile
+	return files, json.Unmarshal([]byte(history[0].RawFiles), &files)
+}
+
+func (d Device) SaveDeviceConfig(reason string, rawFiles string) error {
+	if err := d.storage.fs.Configs.WriteDeviceConfig(d.Uuid, rawFiles, "device", reason); err != nil {
+		return err
+	} else if err = d.storage.fs.Configs.PurgeDeviceConfigHistory(d.Uuid, ConfigHistoryLimit); err != nil {
+		slog.Error("Failed to clean device config history", "uuid", d.Uuid, "error", err)
+	}
+	return nil
 }
 
 func NewStorage(db *storage.DbHandle, fs *storage.FsHandle) (*Storage, error) {

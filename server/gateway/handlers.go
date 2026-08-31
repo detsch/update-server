@@ -47,6 +47,7 @@ func RegisterHandlers(e *echo.Echo, storage *storage.Storage, url string) {
 	mtls.POST("apps-states", h.appsStatesInfo)
 	mtls.POST("app-proxy-url", h.appsProxyUrl)
 	mtls.GET("config", h.configGet)
+	mtls.PATCH("config", h.configPatch)
 	mtls.GET("device", h.deviceGet)
 	mtls.POST("events", h.eventsUpload)
 	mtls.POST("ostree/download-urls", h.ostreeUrls)

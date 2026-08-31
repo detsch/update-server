@@ -80,6 +80,14 @@ func (c testClient) PUT(resource string, status int, data any, headers ...string
 	return rec.Body.Bytes()
 }
 
+func (c testClient) PATCH(resource string, status int, data any, headers ...string) []byte {
+	req := httptest.NewRequest(http.MethodPatch, resource, c.marshalBody(data))
+	c.marshalHeaders(headers, req)
+	rec := c.Do(req)
+	require.Equal(c.t, status, rec.Code)
+	return rec.Body.Bytes()
+}
+
 func (c testClient) marshalHeaders(headers []string, req *http.Request) {
 	require.Zero(c.t, len(headers)%2, "Headers must be a sequence of names and values - even number")
 	for i := 0; i < len(headers)/2; i++ {
@@ -389,6 +397,91 @@ func TestConfig(t *testing.T) {
 	checkConfig("baz", "baz device")
 	checkConfig("ooh", "ooh device")
 	checkTimestamp(true)
+}
+
+func TestConfigPatch(t *testing.T) {
+	tc := NewTestClient(t)
+
+	getConfig := func() map[string]ConfigFile {
+		var cfg map[string]ConfigFile
+		require.Nil(t, json.Unmarshal(tc.GET("/config", 200), &cfg))
+		return cfg
+	}
+
+	// A malformed JSON body is rejected
+	_ = tc.PATCH("/config", 400, "not json")
+
+	// An unknown config file name is rejected
+	_ = tc.PATCH("/config", 400, ConfigCreate{
+		Reason: "bad name",
+		Files:  []ConfigFileCreate{{Name: "not-a-real-file", Value: "x"}},
+	})
+
+	// A reason containing characters outside the allowlist (e.g. a newline) is rejected
+	_ = tc.PATCH("/config", 400, ConfigCreate{
+		Reason: "line1\nline2:evil:stuff",
+		Files:  []ConfigFileCreate{{Name: "wireguard-client", Value: "x"}},
+	})
+
+	// A reason exceeding the maximum length is rejected
+	_ = tc.PATCH("/config", 400, ConfigCreate{
+		Reason: strings.Repeat("x", 201),
+		Files:  []ConfigFileCreate{{Name: "wireguard-client", Value: "x"}},
+	})
+
+	// None of the rejected requests should have created a device config
+	_ = tc.GET("/config", 204)
+
+	// Add a wireguard-client config file
+	_ = tc.PATCH("/config", 201, ConfigCreate{
+		Reason: "enable wireguard",
+		Files: []ConfigFileCreate{
+			{Name: "wireguard-client", Value: "wg-config-1", OnChanged: []string{"/bin/wg-up"}},
+		},
+	})
+	cfg := getConfig()
+	require.Equal(t, 1, len(cfg))
+	require.Equal(t, "wg-config-1", cfg["wireguard-client"].Value)
+	require.Equal(t, []string{"/bin/wg-up"}, cfg["wireguard-client"].OnChanged)
+	require.False(t, cfg["wireguard-client"].Unencrypted)
+
+	// Adding fio-remote-actions preserves the existing wireguard-client config
+	unencrypted := true
+	_ = tc.PATCH("/config", 201, ConfigCreate{
+		Reason: "enable remote actions",
+		Files: []ConfigFileCreate{
+			{Name: "fio-remote-actions", Value: "actions-1", Unencrypted: &unencrypted},
+		},
+	})
+	cfg = getConfig()
+	require.Equal(t, 2, len(cfg))
+	require.Equal(t, "wg-config-1", cfg["wireguard-client"].Value)
+	require.Equal(t, "actions-1", cfg["fio-remote-actions"].Value)
+	require.True(t, cfg["fio-remote-actions"].Unencrypted)
+
+	// Patching an existing config file name replaces its content
+	_ = tc.PATCH("/config", 201, ConfigCreate{
+		Reason: "rotate wireguard key",
+		Files: []ConfigFileCreate{
+			{Name: "wireguard-client", Value: "wg-config-2"},
+		},
+	})
+	cfg = getConfig()
+	require.Equal(t, 2, len(cfg))
+	require.Equal(t, "wg-config-2", cfg["wireguard-client"].Value)
+	require.Equal(t, 0, len(cfg["wireguard-client"].OnChanged))
+	require.Equal(t, "actions-1", cfg["fio-remote-actions"].Value)
+
+	// A request with any unknown file name is rejected in full, even if it also contains valid entries
+	_ = tc.PATCH("/config", 400, ConfigCreate{
+		Reason: "mixed",
+		Files: []ConfigFileCreate{
+			{Name: "wireguard-client", Value: "should-not-apply"},
+			{Name: "not-a-real-file", Value: "x"},
+		},
+	})
+	cfg = getConfig()
+	require.Equal(t, "wg-config-2", cfg["wireguard-client"].Value)
 }
 
 func TestConfigSota(t *testing.T) {

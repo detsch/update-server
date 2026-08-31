@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"slices"
 
 	"github.com/labstack/echo/v4"
@@ -301,13 +300,6 @@ func configHistoryToJson(history []*ConfigFileSet) []*configFileSet {
 	return res
 }
 
-var (
-	// For a reason allow alphanum + basic punctuation + space. Important: no newlines.
-	validConfigsReasonChars  = `a-zA-Z0-9_ ,.-:;'"`
-	validConfigsReasonRegexp = `^[a-zA-Z0-9_ \,\.\-\:\;\'\"]*$`
-	validateConfigsReason    = regexp.MustCompile(validConfigsReasonRegexp).MatchString
-)
-
 func validateConfigSet(c echo.Context, denySotaOverride bool) (reason string, content []byte, err error) {
 	body := c.Request().Body
 	defer body.Close() //nolint:errcheck
@@ -317,12 +309,8 @@ func validateConfigSet(c echo.Context, denySotaOverride bool) (reason string, co
 	if err = dec.Decode(&configs); err != nil {
 		return "", nil, EchoError(c, err, http.StatusBadRequest, "Failed to parse request body")
 	}
-	const maxReasonLen = 200
-	if len(configs.Reason) > maxReasonLen {
-		err = fmt.Errorf("a maximum accepted reason length is %d", maxReasonLen)
-		return "", nil, EchoError(c, err, http.StatusBadRequest, err.Error())
-	} else if !validateConfigsReason(configs.Reason) {
-		err = fmt.Errorf("reason must only contain the following characters: %s", validConfigsReasonChars)
+	if !storage.ValidConfigsReasonRegex.MatchString(configs.Reason) {
+		err = fmt.Errorf("reason must match pattern: %s", storage.ValidConfigsReasonRegex.String())
 		return "", nil, EchoError(c, err, http.StatusBadRequest, err.Error())
 	}
 	if denySotaOverride {

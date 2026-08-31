@@ -45,8 +45,8 @@ const (
 	OrderByDeviceUuidAsc     OrderBy = "uuid-asc"
 	OrderByDeviceUuidDesc    OrderBy = "uuid-desc"
 
-	ConfigHistoryLimit int = 10
-	ConfigSotaOverride     = storage.ConfigSotaOverride
+	ConfigHistoryLimit = storage.ConfigHistoryLimit
+	ConfigSotaOverride = storage.ConfigSotaOverride
 )
 
 var orderByDeviceMap = map[OrderBy]string{
@@ -69,6 +69,8 @@ var (
 
 	ValidCorrelationId = storage.ValidCorrelationId
 	TestIdRegex        = storage.TestIdRegex
+
+	ValidConfigsReasonRegex = storage.ValidConfigsReasonRegex
 
 	IsDbError             = storage.IsDbError
 	ErrDbConstraintUnique = storage.ErrDbConstraintUnique
