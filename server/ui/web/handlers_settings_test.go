@@ -5,12 +5,23 @@ package web
 
 import (
 	"bytes"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/foundriesio/update-server/auth"
+	"github.com/foundriesio/update-server/context"
 	webtemplates "github.com/foundriesio/update-server/server/ui/web/templates"
+	"github.com/foundriesio/update-server/storage"
 	"github.com/foundriesio/update-server/storage/users"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type settingsTemplateCtx struct {
@@ -84,6 +95,10 @@ func TestSettingsTemplateRendersLedgerAndPreservesActions(t *testing.T) {
 	assert.Contains(t, html, `data-action="open-token"`)
 	assert.Contains(t, html, `data-token-id="17"`)
 	assert.Contains(t, html, `data-action="revoke-token"`)
+	assert.Contains(t, html, `data-action="edit-token" data-token-id="17" data-token-description="CI release pipeline" data-token-scopes="devices:read-update"`)
+	assert.Contains(t, html, `id="tokenEditModal"`)
+	assert.Contains(t, html, `id="edit-scope-devices:read" name="editScopes" value="devices:read"`)
+	assert.Contains(t, html, `id="edit-scope-updates:read" name="editScopes" value="updates:read"`)
 	assert.Contains(t, html, `id="tokenModal"`)
 	assert.Contains(t, html, `id="scope-devices:read" name="scopes" value="devices:read"`)
 	assert.Contains(t, html, `id="description" name="description" maxlength="80" autocomplete="off" required`)
@@ -272,4 +287,61 @@ func TestSettingsLedgerStylesAreScopedAndResponsive(t *testing.T) {
 		}
 	}
 	assert.NotContains(t, css, ".settings-ledger > h1 {")
+}
+
+func TestSettingsTokenUpdate(t *testing.T) {
+	tmpdir := t.TempDir()
+	db, err := storage.NewDb(filepath.Join(tmpdir, "sql.db"))
+	require.NoError(t, err)
+	fs, err := storage.NewFs(tmpdir)
+	require.NoError(t, err)
+	require.NoError(t, fs.Auth.InitHmacSecret())
+	userStorage, err := users.NewStorage(db, fs, &storage.AuthConfig{})
+	require.NoError(t, err)
+	u := users.User{Username: "operator", Password: "hash", AllowedScopes: users.ScopeDevicesRU | users.ScopeUpdatesR}
+	require.NoError(t, userStorage.Create(&u))
+	user, err := userStorage.Get("operator")
+	require.NoError(t, err)
+	tok, err := user.GenerateToken("before", time.Now().Add(time.Hour).Unix(), users.ScopeDevicesR)
+	require.NoError(t, err)
+
+	update := func(t *testing.T, tokenID, body string) int {
+		t.Helper()
+		e := echo.New()
+		req := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		ctx := context.CtxWithLog(req.Context(), slog.New(slog.DiscardHandler))
+		req = req.WithContext(CtxWithSession(ctx, &auth.Session{User: user}))
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.SetParamNames("username", "tokenID")
+		c.SetParamValues("operator", tokenID)
+		if err := (handlers{}).settingsTokenUpdate(c); err != nil {
+			var httpErr *echo.HTTPError
+			require.ErrorAs(t, err, &httpErr)
+			return httpErr.Code
+		}
+		return rec.Code
+	}
+	tokenID := strconv.FormatInt(tok.PublicID, 10)
+
+	code := update(t, tokenID, `{"description":" after ","scopes":["devices:read-update","updates:read"]}`)
+	require.Equal(t, http.StatusNoContent, code)
+	tokens, err := user.ListTokens()
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+	assert.Equal(t, "after", tokens[0].Description)
+	assert.Equal(t, users.ScopeDevicesRU|users.ScopeUpdatesR, tokens[0].Scopes)
+
+	for name, tc := range map[string]struct{ id, body string }{
+		"bad id":          {"abc", `{"description":"x","scopes":["devices:read"]}`},
+		"no description":  {tokenID, `{"description":"  ","scopes":["devices:read"]}`},
+		"no scopes":       {tokenID, `{"description":"x","scopes":[]}`},
+		"unknown scope":   {tokenID, `{"description":"x","scopes":["bogus"]}`},
+		"exceeds allowed": {tokenID, `{"description":"x","scopes":["users:create"]}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, http.StatusBadRequest, update(t, tc.id, tc.body))
+		})
+	}
 }

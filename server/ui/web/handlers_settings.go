@@ -4,8 +4,11 @@
 package web
 
 import (
+	"errors"
+	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/foundriesio/update-server/storage/users"
@@ -150,4 +153,40 @@ func (h handlers) settings(c echo.Context) error {
 		Oauth2ApiUrl:    c.Scheme() + "://" + c.Request().Host + "/oauth2",
 	}
 	return c.Render(http.StatusOK, "settings.html", ctx)
+}
+
+func (h handlers) settingsTokenUpdate(c echo.Context) error {
+	session := CtxGetSession(c.Request().Context())
+	tokenID, err := strconv.ParseInt(c.Param("tokenID"), 10, 64)
+	if err != nil {
+		return EchoError(c, err, http.StatusBadRequest, "Invalid token ID format")
+	}
+
+	type TokenUpdateRequest struct {
+		Description string   `json:"description"`
+		Scopes      []string `json:"scopes"`
+	}
+	var req TokenUpdateRequest
+	if err := c.Bind(&req); err != nil {
+		return EchoError(c, err, http.StatusBadRequest, "Could not parse request")
+	}
+
+	req.Description = strings.TrimSpace(req.Description)
+	if len(req.Description) == 0 {
+		err := errors.New("token description is required")
+		return EchoError(c, err, http.StatusBadRequest, err.Error())
+	}
+	if len(req.Scopes) == 0 {
+		err := errors.New("at least one scope is required")
+		return EchoError(c, err, http.StatusBadRequest, err.Error())
+	}
+	scopes, err := users.ScopesFromSlice(req.Scopes)
+	if err != nil {
+		return EchoError(c, err, http.StatusBadRequest, fmt.Sprintf("Invalid scope: %s", err))
+	}
+
+	if err := session.User.UpdateToken(tokenID, req.Description, scopes); err != nil {
+		return EchoError(c, err, http.StatusBadRequest, err.Error())
+	}
+	return c.NoContent(http.StatusNoContent)
 }

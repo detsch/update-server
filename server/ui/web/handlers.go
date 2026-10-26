@@ -120,6 +120,7 @@ func RegisterHandlers(e *echo.Echo, storage *users.Storage, authProvider auth.Pr
 	e.GET("/users/:username/audit-log", h.usersAuditLog, h.requireSession, h.requireScope(users.ScopeUsersR))
 	e.POST("/users/:username/tokens", h.userTokenCreate, h.requireSession)
 	e.PUT("/users/:username/scopes", h.userScopesUpdate, h.requireSession)
+	e.PATCH("/users/:username/tokens/:tokenID", h.settingsTokenUpdate, h.requireSession)
 	e.DELETE("/users/:username/tokens/:tokenID", h.userTokenDelete, h.requireSession)
 }
 
