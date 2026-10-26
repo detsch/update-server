@@ -134,7 +134,7 @@
                 <legend class="field-row__key">Scopes</legend>
                 <p class="field-row__caption" id="token-scopes-description">Select one or more permissions for this token.</p>
                 <div class="group-grid">
-                  {{range .ScopesList}}
+                  {{range .GrantableScopes}}
                   <label class="group-check" for="scope-{{.}}">
                     <input type="checkbox" id="scope-{{.}}" name="scopes" value="{{.}}">
                     <span class="settings-ledger__mono">{{.}}</span>

@@ -15,12 +15,13 @@ import (
 
 type settingsTemplateCtx struct {
 	baseCtx
-	Tokens       []users.Token
-	ScopesList   []string
-	ScopeGroups  []settingsScopeTemplateGroup
-	LocalAuth    bool
-	DeviceApiUrl string
-	Oauth2ApiUrl string
+	Tokens          []users.Token
+	ScopesList      []string
+	GrantableScopes []string
+	ScopeGroups     []settingsScopeTemplateGroup
+	LocalAuth       bool
+	DeviceApiUrl    string
+	Oauth2ApiUrl    string
 }
 
 type settingsScopeTemplateGroup struct {
@@ -56,7 +57,8 @@ func TestSettingsTemplateRendersLedgerAndPreservesActions(t *testing.T) {
 			Description: "CI release pipeline",
 			Scopes:      users.ScopeDevicesRU,
 		}},
-		ScopesList: []string{"devices:read-update", "updates:read"},
+		ScopesList:      []string{"devices:read-update", "updates:read"},
+		GrantableScopes: []string{"devices:read", "devices:read-update", "updates:read"},
 		ScopeGroups: []settingsScopeTemplateGroup{
 			{Resource: "devices", Operations: "Read or update", ScopeNames: []string{"devices:read-update"}},
 			{Resource: "updates", Operations: "Read", ScopeNames: []string{"updates:read"}},
@@ -83,6 +85,7 @@ func TestSettingsTemplateRendersLedgerAndPreservesActions(t *testing.T) {
 	assert.Contains(t, html, `data-token-id="17"`)
 	assert.Contains(t, html, `data-action="revoke-token"`)
 	assert.Contains(t, html, `id="tokenModal"`)
+	assert.Contains(t, html, `id="scope-devices:read" name="scopes" value="devices:read"`)
 	assert.Contains(t, html, `id="description" name="description" maxlength="80" autocomplete="off" required`)
 	assert.Contains(t, html, `id="expires" name="expires" autocomplete="off" required`)
 	assert.Contains(t, html, `id="revokeModal"`)

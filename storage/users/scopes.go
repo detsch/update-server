@@ -125,6 +125,18 @@ OUTER:
 	return result
 }
 
+// Grantable lists every scope s can grant, including narrower scopes implied
+// by a broader one (eg devices:read under devices:read-update).
+func (s Scopes) Grantable() []string {
+	var result []string
+	for _, name := range allScopes {
+		if s.Has(stringToMask[name]) {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
 func (s Scopes) Has(scope Scopes) bool {
 	return s&scope == scope
 }

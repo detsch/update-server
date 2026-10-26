@@ -118,3 +118,11 @@ func TestScopes_ToSlice(t *testing.T) {
 		})
 	}
 }
+
+func TestScopes_Grantable(t *testing.T) {
+	got := (ScopeDevicesRU | ScopeUsersR | ScopeUsersD).Grantable()
+	want := []string{"devices:read", "devices:read-update", "users:delete", "users:read"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("Grantable() = %v, want %v", got, want)
+	}
+}

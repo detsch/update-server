@@ -132,20 +132,22 @@ func (h handlers) settings(c echo.Context) error {
 	scopes := session.User.AllowedScopes.ToSlice()
 	ctx := struct {
 		baseCtx
-		Tokens       []users.Token
-		ScopesList   []string
-		ScopeGroups  []settingsScopeGroup
-		LocalAuth    bool
-		DeviceApiUrl string
-		Oauth2ApiUrl string
+		Tokens          []users.Token
+		ScopesList      []string
+		GrantableScopes []string
+		ScopeGroups     []settingsScopeGroup
+		LocalAuth       bool
+		DeviceApiUrl    string
+		Oauth2ApiUrl    string
 	}{
-		baseCtx:      h.baseCtx(c, "Settings", "settings"),
-		Tokens:       tokens,
-		ScopesList:   scopes,
-		ScopeGroups:  groupSettingsScopes(scopes),
-		LocalAuth:    h.provider.Name() == "local",
-		DeviceApiUrl: c.Scheme() + "://" + c.Request().Host + "/v1/devices",
-		Oauth2ApiUrl: c.Scheme() + "://" + c.Request().Host + "/oauth2",
+		baseCtx:         h.baseCtx(c, "Settings", "settings"),
+		Tokens:          tokens,
+		ScopesList:      scopes,
+		GrantableScopes: session.User.AllowedScopes.Grantable(),
+		ScopeGroups:     groupSettingsScopes(scopes),
+		LocalAuth:       h.provider.Name() == "local",
+		DeviceApiUrl:    c.Scheme() + "://" + c.Request().Host + "/v1/devices",
+		Oauth2ApiUrl:    c.Scheme() + "://" + c.Request().Host + "/oauth2",
 	}
 	return c.Render(http.StatusOK, "settings.html", ctx)
 }
