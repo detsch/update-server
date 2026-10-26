@@ -74,6 +74,7 @@ type Storage struct {
 	stmtTokenDeleteExpired stmtTokenDeleteExpired
 	stmtTokenList          stmtTokenList
 	stmtTokenLookup        stmtTokenLookup
+	stmtTokenUpdate        stmtTokenUpdate
 
 	// OAuth2 device-flow authorization
 	stmtOAuth2DeviceAuthCreate          stmtOAuth2DeviceAuthCreate
@@ -113,6 +114,7 @@ func NewStorage(db *storage.DbHandle, fs *storage.FsHandle, authConfig *storage.
 		&handle.stmtTokenDeleteExpired,
 		&handle.stmtTokenList,
 		&handle.stmtTokenLookup,
+		&handle.stmtTokenUpdate,
 		&handle.stmtOAuth2DeviceAuthCreate,
 		&handle.stmtOAuth2DeviceAuthGetByDeviceCode,
 		&handle.stmtOAuth2DeviceAuthGetByUserCode,
