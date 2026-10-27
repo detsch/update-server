@@ -3,6 +3,8 @@
 
 """Web UI tests for update-server using Playwright."""
 
+import sqlite3
+
 import pytest
 
 SERVER_URL = "http://localhost:8080"
@@ -59,6 +61,102 @@ def test_upload_dialog_opens_and_closes(page, update_server):
 
     page.click("#dlg-close-btn")
     assert not dialog.is_visible()
+
+
+def test_update_delete_locks_dialog_while_pending(page, update_server):
+    """An in-flight update deletion cannot be repeated or dismissed."""
+    update_name = "pending-delete"
+    with sqlite3.connect(update_server / "db.sqlite") as db:
+        db.execute(
+            "INSERT INTO updates(tag, name, uploaded_at, uploaded_by) "
+            "VALUES(?, ?, unixepoch('now'), ?)",
+            ("main", update_name, "e2e"),
+        )
+    (update_server / "updates" / update_name).mkdir()
+
+    page.goto(f"{SERVER_URL}/updates")
+    page.evaluate(
+        """
+        updateName => {
+          var realFetch = window.fetch.bind(window);
+          window.__deleteRequests = 0;
+          window.alert = function() {};
+          window.fetch = function(url, options) {
+            if (url === '/v1/updates/' + encodeURIComponent(updateName) &&
+                options && options.method === 'DELETE') {
+              window.__deleteRequests += 1;
+              return new Promise(function(resolve) {
+                window.setTimeout(function() {
+                  resolve(new Response('test failure', { status: 500 }));
+                }, 1000);
+              });
+            }
+            return realFetch(url, options);
+          };
+        };
+        """,
+        update_name,
+    )
+
+    page.get_by_role("button", name=f"Delete update {update_name}").click()
+    page.locator("#confirm-cb").check()
+    page.locator("#deleteConfirmBtn").evaluate(
+        "button => { button.click(); button.click(); }"
+    )
+    page.keyboard.press("Escape")
+    pending_state = page.evaluate(
+        """
+        ({
+          requests: window.__deleteRequests,
+          dialogOpen: document.getElementById('deleteDialog').open,
+          dialogBusy: document.getElementById('deleteDialog').getAttribute('aria-busy'),
+          checkboxDisabled: document.getElementById('confirm-cb').disabled,
+          deleteDisabled: document.getElementById('deleteConfirmBtn').disabled,
+          closeDisabled: document.getElementById('delete-close-btn').disabled,
+          cancelDisabled: document.getElementById('delete-cancel-btn').disabled
+        })
+        """
+    )
+    page.wait_for_function(
+        "document.getElementById('deleteDialog').getAttribute('aria-busy') === 'false'"
+    )
+
+    assert pending_state == {
+        "requests": 1,
+        "dialogOpen": True,
+        "dialogBusy": "true",
+        "checkboxDisabled": True,
+        "deleteDisabled": True,
+        "closeDisabled": True,
+        "cancelDisabled": True,
+    }
+    assert page.locator("#deleteDialog").is_visible()
+    assert not page.locator("#confirm-cb").is_disabled()
+    assert not page.locator("#deleteConfirmBtn").is_disabled()
+    assert not page.locator("#delete-close-btn").is_disabled()
+    assert not page.locator("#delete-cancel-btn").is_disabled()
+
+
+def test_delete_dialog_contains_scroll(page, update_server):
+    """Delete dialog scroll gestures do not reach the page behind it."""
+    page.goto(f"{SERVER_URL}/updates")
+    page.evaluate("document.getElementById('deleteDialog').showModal()")
+
+    styles = page.locator("#deleteDialog").evaluate(
+        """
+        dialog => ({
+          dialogOverscroll: getComputedStyle(dialog).overscrollBehavior,
+          backdropOverflow: getComputedStyle(dialog, '::backdrop').overflow,
+          backdropOverscroll: getComputedStyle(dialog, '::backdrop').overscrollBehavior
+        })
+        """
+    )
+
+    assert styles == {
+        "dialogOverscroll": "contain",
+        "backdropOverflow": "hidden",
+        "backdropOverscroll": "contain",
+    }
 
 
 # ── Device-dependent tests (require a registered device) ────────────────────

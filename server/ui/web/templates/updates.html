@@ -19,6 +19,7 @@
           <th>Uploaded at</th>
           <th>Device count</th>
           <th>Uploaded by</th>
+          <th class="cell-delete" scope="col" aria-label="Actions"></th>
         </tr>
       </thead>
       <tbody>
@@ -29,6 +30,13 @@
           <td class="cell-ts">{{ tsToString $update.UploadedAt }}</td>
           <td>{{ $update.DeviceCount }}</td>
           <td class="cell-uploaded-by">{{ $update.UploadedBy }}</td>
+          <td class="cell-delete">
+            {{ if and $.CanDelete (eq $update.DeviceCount 0) }}
+            <button type="button" class="btn-delete" aria-label="Delete update {{ $update.Name }}" title="Delete update" onclick="showDeleteDialog('{{ $update.Name }}')">
+              <i class="trash" aria-hidden="true"></i>
+            </button>
+            {{ end }}
+          </td>
         </tr>
         {{ end }}
       </tbody>
@@ -37,6 +45,104 @@
   {{ else }}
   <p class="updates-empty">No updates uploaded yet. Use <strong>Upload update</strong> to create one.</p>
   {{ end }}
+
+<dialog id="deleteDialog" aria-labelledby="delete-title">
+  <article>
+    <div class="dlg-header">
+      <h2 id="delete-title">Delete Update</h2>
+      <button class="dlg-close" id="delete-close-btn" type="button" aria-label="Close dialog">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <div class="identity-block">
+        <div class="identity-row">
+          <span class="identity-label">Name</span>
+          <span class="identity-value" id="deleteName"></span>
+        </div>
+      </div>
+      <p class="dlg-consequence">
+        This update and its content will be permanently deleted.
+      </p>
+      <div class="confirm-row">
+        <input type="checkbox" id="confirm-cb" aria-describedby="delete-title">
+        <label for="confirm-cb">I understand this action cannot be undone</label>
+      </div>
+    </div>
+    <div class="dlg-footer">
+      <button class="dlg-btn dlg-btn-cancel" id="delete-cancel-btn" type="button">Cancel</button>
+      <button class="dlg-btn dlg-btn-delete" id="deleteConfirmBtn" type="button" disabled aria-disabled="true">Delete</button>
+    </div>
+  </article>
+</dialog>
+
+<script>
+var deletePending = false;
+
+function setDeletePending(pending) {
+  var dialog = document.getElementById('deleteDialog');
+  var cb = document.getElementById('confirm-cb');
+  var deleteBtn = document.getElementById('deleteConfirmBtn');
+  deletePending = pending;
+  dialog.setAttribute('aria-busy', String(pending));
+  cb.disabled = pending;
+  deleteBtn.disabled = pending || !cb.checked;
+  deleteBtn.setAttribute('aria-disabled', String(deleteBtn.disabled));
+  document.getElementById('delete-close-btn').disabled = pending;
+  document.getElementById('delete-cancel-btn').disabled = pending;
+}
+
+function showDeleteDialog(name) {
+  var cb = document.getElementById('confirm-cb');
+  var deleteBtn = document.getElementById('deleteConfirmBtn');
+  document.getElementById('deleteName').textContent = name;
+  cb.checked = false;
+  setDeletePending(false);
+  deleteBtn.onclick = function() { deleteUpdate(name); };
+  document.getElementById('deleteDialog').showModal();
+}
+
+function deleteUpdate(name) {
+  if (deletePending) return;
+  setDeletePending(true);
+  fetch('/v1/updates/' + encodeURIComponent(name), { method: 'DELETE' })
+    .then(function(response) {
+      if (response.ok) {
+        document.getElementById('deleteDialog').close();
+        window.location.reload();
+      } else {
+        return response.text().then(function(errorText) {
+          setDeletePending(false);
+          alert('Error deleting update: ' + errorText);
+        });
+      }
+    })
+    .catch(function(error) {
+      setDeletePending(false);
+      alert('Error deleting update: ' + error.message);
+    });
+}
+
+(function() {
+  document.getElementById('confirm-cb').addEventListener('change', function() {
+    var deleteBtn = document.getElementById('deleteConfirmBtn');
+    deleteBtn.disabled = !this.checked;
+    deleteBtn.setAttribute('aria-disabled', String(!this.checked));
+  });
+  document.getElementById('delete-close-btn').addEventListener('click', function() {
+    if (!deletePending) document.getElementById('deleteDialog').close();
+  });
+  document.getElementById('delete-cancel-btn').addEventListener('click', function() {
+    if (!deletePending) document.getElementById('deleteDialog').close();
+  });
+  document.getElementById('deleteDialog').addEventListener('cancel', function(event) {
+    if (deletePending) event.preventDefault();
+  });
+}());
+</script>
 
   <dialog id="upload-dialog" aria-labelledby="upload-dlg-title" class="upload-dialog">
     <article>
@@ -509,7 +615,7 @@
 
     document.querySelectorAll('.update-row').forEach(function (row) {
       row.addEventListener('click', function (e) {
-        if (e.target.closest('a')) {
+        if (e.target.closest('a, button')) {
           return;
         }
         window.location.href = row.dataset.href;

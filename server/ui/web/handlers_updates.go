@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/foundriesio/update-server/server/ui/api"
+	"github.com/foundriesio/update-server/storage/users"
 	"github.com/labstack/echo/v4"
 )
 
@@ -180,10 +181,12 @@ func (h handlers) updatesList(c echo.Context) error {
 
 	ctx := struct {
 		baseCtx
-		Updates []api.Update
+		Updates   []api.Update
+		CanDelete bool
 	}{
-		baseCtx: h.baseCtx(c, updatesLabel, "updates"),
-		Updates: updates,
+		baseCtx:   h.baseCtx(c, updatesLabel, "updates"),
+		Updates:   updates,
+		CanDelete: CtxGetSession(c.Request().Context()).User.AllowedScopes.Has(users.ScopeUpdatesD),
 	}
 	return h.templates.ExecuteTemplate(c.Response(), "updates.html", ctx)
 }

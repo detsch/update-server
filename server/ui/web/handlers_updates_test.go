@@ -18,6 +18,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestUpdatesTemplateDeleteEligibility(t *testing.T) {
+	for _, canDelete := range []bool{true, false} {
+		ctx := struct {
+			baseCtx
+			Updates   []api.Update
+			CanDelete bool
+		}{
+			Updates: []api.Update{
+				{Name: "unused", DeviceCount: 0},
+				{Name: "assigned", DeviceCount: 1},
+			},
+			CanDelete: canDelete,
+		}
+		var buf bytes.Buffer
+		if err := templates.Templates.ExecuteTemplate(&buf, "updates.html", ctx); err != nil {
+			t.Fatal(err)
+		}
+		html := buf.String()
+		assert.Contains(t, html, `href="/updates/unused"`)
+		assert.Contains(t, html, `href="/updates/assigned"`)
+		assert.NotContains(t, html, `aria-label="Delete update assigned"`)
+		assert.Equal(t, canDelete, strings.Contains(html, `aria-label="Delete update unused"`))
+	}
+}
+
 // updateDetailCtx mirrors the anonymous context struct updatesGet builds for
 // update.html, so tests can render the template with representative data.
 type updateDetailCtx struct {
