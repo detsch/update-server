@@ -96,7 +96,7 @@ func TestSettingsTemplateRendersLedgerAndPreservesActions(t *testing.T) {
 	assert.Contains(t, html, `data-token-id="17"`)
 	assert.Contains(t, html, `data-action="revoke-token"`)
 	assert.Contains(t, html, `data-action="edit-token" data-token-id="17" data-token-description="CI release pipeline" data-token-scopes="devices:read-update"`)
-	assert.Contains(t, html, `id="tokenEditModal"`)
+	assert.Contains(t, html, `id="tokenEditModal" aria-labelledby="token-edit-modal-title" aria-describedby="tokenEditStatus"`)
 	assert.Contains(t, html, `id="edit-scope-devices:read" name="editScopes" value="devices:read"`)
 	assert.Contains(t, html, `id="edit-scope-updates:read" name="editScopes" value="updates:read"`)
 	assert.Contains(t, html, `id="tokenModal"`)
@@ -271,6 +271,12 @@ func TestSettingsLedgerStylesAreScopedAndResponsive(t *testing.T) {
 }`,
 		`.settings-ledger__revoke:focus {
     box-shadow: none;
+}`,
+		`.settings-ledger__token-table th:last-child,
+.settings-ledger__token-table td:last-child {
+    width: 6.5rem;
+    text-align: right;
+    white-space: nowrap;
 }`,
 		`:root[data-theme="dark"] .settings-ledger__button--primary {
     border-color: var(--brand-accent);

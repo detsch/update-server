@@ -4710,8 +4710,9 @@ pre.code-block {
 }
 .settings-ledger__token-table th:last-child,
 .settings-ledger__token-table td:last-child {
-    width: 12%;
+    width: 6.5rem;
     text-align: right;
+    white-space: nowrap;
 }
 .settings-ledger__revoke:focus {
     box-shadow: none;
