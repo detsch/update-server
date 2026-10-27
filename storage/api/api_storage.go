@@ -369,8 +369,8 @@ func (s Storage) ListUpdates(tag string) ([]Update, error) {
 	return s.stmtUpdateList.run(tag)
 }
 
-func (s Storage) DeviceCreate(uuid, cert string, labels Labels) error {
-	return s.stmtDevicePut.run(uuid, cert, labels)
+func (s Storage) DeviceCreate(uuid, cert, tag string, labels Labels) error {
+	return s.stmtDevicePut.run(uuid, cert, tag, labels)
 }
 
 // DeleteUpdate removes an update's database row and on-disk directory. It
@@ -875,17 +875,17 @@ type stmtDevicePut storage.DbStmt
 
 func (s *stmtDevicePut) Init(db storage.DbHandle) (err error) {
 	s.Stmt, err = db.Prepare("apiDevicePut", `
-		INSERT INTO devices (uuid, cert, labels, deleted, last_seen, created_at)
-		VALUES (?, ?, ?, false, 0, unixepoch())`)
+		INSERT INTO devices (uuid, cert, tag, labels, deleted, last_seen, created_at)
+		VALUES (?, ?, ?, ?, false, 0, unixepoch())`)
 	return
 }
 
-func (s *stmtDevicePut) run(uuid, cert string, labels Labels) error {
+func (s *stmtDevicePut) run(uuid, cert, tag string, labels Labels) error {
 	labelsJson, err := json.Marshal(labels)
 	if err != nil {
 		return fmt.Errorf("unexpected error marshalling labels to JSON: %w", err)
 	}
-	_, err = s.Stmt.Exec(uuid, cert, labelsJson)
+	_, err = s.Stmt.Exec(uuid, cert, tag, labelsJson)
 	return err
 }
 

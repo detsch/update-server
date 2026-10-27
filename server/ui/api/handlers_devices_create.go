@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/foundriesio/update-server/storage"
@@ -172,7 +173,12 @@ func (h handlers) deviceCreate(c echo.Context) error {
 
 	sotaBytes := genSotaToml(req, h.ca.DgUrl)
 
-	if err := h.storage.DeviceCreate(req.Uuid, string(cert), labels); err != nil {
+	// Rollouts select devices by tag, and the device itself first reports it on
+	// its first TUF request; store it now so a rollout right after registration
+	// reaches the device.
+	tag := strings.Trim(req.Overrides["pacman"]["tags"], `"`)
+
+	if err := h.storage.DeviceCreate(req.Uuid, string(cert), tag, labels); err != nil {
 		if storage.IsDbError(err, storage.ErrDbConstraintUnique) {
 			return EchoError(c, err, http.StatusConflict, "Device already exists")
 		}

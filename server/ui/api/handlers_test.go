@@ -1177,11 +1177,21 @@ func TestApiDeviceCreate(t *testing.T) {
 		Group:      "",
 		HardwareId: "hwid-1",
 		Csr:        string(devCsrPEM),
+		// fio-device-register --tag sends the tag as a quoted TOML string
+		Overrides: SotaToml{"pacman": {"tags": `"main"`}},
 	}
 	body, err := json.Marshal(req)
 	require.NoError(t, err)
 	resp := tc.POST("/devices", http.StatusCreated, bytes.NewReader(body), "content-type", "application/json")
 	tc.POST("/devices", http.StatusConflict, bytes.NewReader(body), "content-type", "application/json")
+
+	// The tag is known before the device's first check-in, so a rollout reaches it
+	dev, err := tc.api.DeviceGet("test-uuid-1")
+	require.NoError(t, err)
+	assert.Equal(t, "main", dev.Tag)
+	effect, err := tc.api.SetUpdateName("main", "update-1", []string{"test-uuid-1"}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"test-uuid-1"}, effect)
 
 	time.Sleep(500 * time.Millisecond) // Ensure any previous rate limit buckets are reset
 	var devResp DeviceCreateResponse
@@ -1210,6 +1220,11 @@ func TestApiDeviceCreate(t *testing.T) {
 	body, err = json.Marshal(req)
 	require.NoError(t, err)
 	tc.POST("/devices", http.StatusCreated, bytes.NewReader(body), "content-type", "application/json")
+
+	// Without a tag override the device has none until it checks in
+	dev, err = tc.api.DeviceGet("test-uuid-2")
+	require.NoError(t, err)
+	assert.Empty(t, dev.Tag)
 
 	// Test rate limiting by sending rapid requests: 1st should conflict (duplicate), next should be rate limited
 	time.Sleep(500 * time.Millisecond) // Ensure any previous rate limit buckets are reset
