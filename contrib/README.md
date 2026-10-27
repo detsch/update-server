@@ -13,6 +13,15 @@ This script builds a container with all the required dependencies for
 developing on this code base and will drop you in a container with the
 project source code mounted.
 
+The base image defaults to Docker Hub. To use the ECR Public mirror, build
+the image from the repository root before running `./contrib/dev-shell`:
+
+```sh
+docker build -f contrib/Dockerfile.devshell \
+  --build-arg BASE_IMAGE=public.ecr.aws/docker/library/golang:1.27.3-bookworm \
+  -t "$(basename "$PWD")-devshell" .
+```
+
 ## `e2e`
 
 An end-to-end test suite that exercises a real update server together with
