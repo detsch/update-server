@@ -122,6 +122,18 @@ func (u User) ListTokens() ([]Token, error) {
 	return u.h.stmtTokenList.run(u)
 }
 
+func (u User) UpdateToken(id int64, newDescription string, newScopes Scopes) error {
+	if newScopes&u.AllowedScopes != newScopes {
+		return fmt.Errorf("requested scopes %s exceed allowed scopes %s", newScopes.String(), u.AllowedScopes.String())
+	}
+	if err := u.h.stmtTokenUpdate.run(u, id, newDescription, newScopes); err != nil {
+		return err
+	}
+	msg := fmt.Sprintf("Token updated (id=%d, scopes=%s)", id, newScopes)
+	u.h.fs.Audit.AppendEvent(u.id, msg)
+	return nil
+}
+
 type stmtTokenCreate storage.DbStmt
 
 func (s *stmtTokenCreate) Init(db storage.DbHandle) (err error) {
@@ -193,6 +205,22 @@ func (s *stmtTokenDeleteExpired) Init(db storage.DbHandle) (err error) {
 
 func (s *stmtTokenDeleteExpired) run(before int64) error {
 	_, err := s.Stmt.Exec(before)
+	return err
+}
+
+type stmtTokenUpdate storage.DbStmt
+
+func (s *stmtTokenUpdate) Init(db storage.DbHandle) (err error) {
+	s.Stmt, err = db.Prepare("tokenUpdate", `
+		UPDATE tokens
+		SET description = ?, scopes = ?
+		WHERE user_id = ? and public_id = ?`,
+	)
+	return
+}
+
+func (s *stmtTokenUpdate) run(u User, id int64, description string, scopes Scopes) error {
+	_, err := s.Stmt.Exec(description, scopes.String(), u.id, id)
 	return err
 }
 

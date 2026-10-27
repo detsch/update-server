@@ -96,7 +96,10 @@
                 <td><time datetime="{{tsToString .CreatedAt}}">{{tsToDate .CreatedAt}}</time></td>
                 <td><time datetime="{{tsToString .ExpiresAt}}">{{tsToDate .ExpiresAt}}</time>{{if isExpired (tsToString .ExpiresAt)}}<span class="settings-ledger__token-expired">Expired</span>{{end}}</td>
                 <td><ul class="settings-ledger__scope-list" translate="no">{{$scopes := .Scopes.ToSlice}}{{range $index, $scope := $scopes}}<li>{{$scope}}{{if lt (add $index 1) (len $scopes)}}, {{end}}</li>{{end}}</ul></td>
-                <td><button class="btn-delete settings-ledger__revoke" type="button" data-action="revoke-token" data-token-id="{{.PublicID}}" aria-label="Revoke token {{.Description}}" title="Revoke token"><i class="trash" aria-hidden="true"></i></button></td>
+                <td>
+                  <button class="settings-ledger__edit" type="button" data-action="edit-token" data-token-id="{{.PublicID}}" data-token-description="{{.Description}}" data-token-scopes="{{.Scopes.String}}" aria-label="Edit token {{.Description}}" title="Edit token"><i class="edit" aria-hidden="true"></i></button>
+                  <button class="btn-delete settings-ledger__revoke" type="button" data-action="revoke-token" data-token-id="{{.PublicID}}" aria-label="Revoke token {{.Description}}" title="Revoke token"><i class="trash" aria-hidden="true"></i></button>
+                </td>
               </tr>
               {{end}}
             </tbody>
@@ -134,7 +137,7 @@
                 <legend class="field-row__key">Scopes</legend>
                 <p class="field-row__caption" id="token-scopes-description">Select one or more permissions for this token.</p>
                 <div class="group-grid">
-                  {{range .ScopesList}}
+                  {{range .GrantableScopes}}
                   <label class="group-check" for="scope-{{.}}">
                     <input type="checkbox" id="scope-{{.}}" name="scopes" value="{{.}}">
                     <span class="settings-ledger__mono">{{.}}</span>
@@ -148,6 +151,47 @@
           <div class="dlg-footer">
             <button class="dlg-btn dlg-btn-cancel" type="button" data-action="close-token">Cancel</button>
             <button class="dlg-btn dlg-btn-upload" type="submit" form="tokenForm">Create token</button>
+          </div>
+        </article>
+      </dialog>
+
+      <dialog class="upload-dialog" id="tokenEditModal" aria-labelledby="token-edit-modal-title" aria-describedby="tokenEditStatus">
+        <article>
+          <div class="dlg-header">
+            <h2 id="token-edit-modal-title">Edit API token</h2>
+            <button class="dlg-close" type="button" data-action="close-edit-token" aria-label="Close edit token dialog">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                <line x1="2" y1="2" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="12" y1="2" x2="2" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <form id="tokenEditForm">
+            <div class="dlg-body">
+              <div class="field-grid">
+                <div class="field-row">
+                  <label class="field-row__key" for="editDescription">Description</label>
+                  <input class="field-input" type="text" id="editDescription" name="editDescription" maxlength="80" autocomplete="off" required>
+                </div>
+              </div>
+              <fieldset class="field-row settings-ledger__scope-options" aria-describedby="token-edit-scopes-description">
+                <legend class="field-row__key">Scopes</legend>
+                <p class="field-row__caption" id="token-edit-scopes-description">Select one or more permissions for this token.</p>
+                <div class="group-grid">
+                  {{range .GrantableScopes}}
+                  <label class="group-check" for="edit-scope-{{.}}">
+                    <input type="checkbox" id="edit-scope-{{.}}" name="editScopes" value="{{.}}">
+                    <span class="settings-ledger__mono">{{.}}</span>
+                  </label>
+                  {{end}}
+                </div>
+              </fieldset>
+              <p class="settings-ledger__dialog-status" id="tokenEditStatus" role="status" aria-live="polite"></p>
+            </div>
+          </form>
+          <div class="dlg-footer">
+            <button class="dlg-btn dlg-btn-cancel" type="button" data-action="close-edit-token">Cancel</button>
+            <button class="dlg-btn dlg-btn-upload" type="submit" form="tokenEditForm">Ok</button>
           </div>
         </article>
       </dialog>
@@ -251,6 +295,7 @@
         const settingsStatus = document.getElementById('settingsStatus');
         const tokenModal = document.getElementById('tokenModal');
         const tokenCreatedModal = document.getElementById('tokenCreatedModal');
+        const tokenEditModal = document.getElementById('tokenEditModal');
         const passwordModal = document.getElementById('passwordModal');
 
         document.querySelectorAll('[data-copy]').forEach(button => {
@@ -278,6 +323,32 @@
             document.getElementById('revokeStatus').textContent = '';
             revokeModal.showModal();
           });
+        });
+
+        document.querySelectorAll('[data-action="edit-token"]').forEach(button => {
+          button.addEventListener('click', function() {
+            currentTokenId = this.dataset.tokenId;
+            document.getElementById('editDescription').value = this.dataset.tokenDescription;
+            const tokenScopes = this.dataset.tokenScopes ? this.dataset.tokenScopes.split(',') : [];
+            const checkboxes = Array.from(document.getElementsByName('editScopes'));
+            checkboxes.forEach(checkbox => {
+              checkbox.checked = tokenScopes.includes(checkbox.value);
+            });
+            // A token can hold scopes the user can no longer grant; saving drops them.
+            const unselectable = tokenScopes.filter(scope => !checkboxes.some(checkbox => checkbox.value === scope));
+            document.getElementById('tokenEditStatus').textContent = unselectable.length
+              ? 'Saving will remove scopes you can no longer grant: ' + unselectable.join(', ')
+              : '';
+            tokenEditModal.showModal();
+            document.getElementById('editDescription').focus();
+          });
+        });
+        document.querySelectorAll('[data-action="close-edit-token"]').forEach(button => {
+          button.addEventListener('click', () => tokenEditModal.close());
+        });
+        document.getElementById('tokenEditForm').addEventListener('submit', function(event) {
+          event.preventDefault();
+          updateToken();
         });
 
         document.querySelector('[data-action="open-token"]').addEventListener('click', function() {
@@ -334,6 +405,37 @@
         })
         .catch(error => {
           document.getElementById('revokeStatus').textContent = 'Unable to revoke token: ' + error.message;
+        });
+      }
+
+      function updateToken() {
+        if (!currentTokenId) return;
+
+        const description = document.getElementById('editDescription').value.trim();
+        const scopes = Array.from(document.getElementsByName('editScopes'))
+          .filter(checkbox => checkbox.checked)
+          .map(checkbox => checkbox.value);
+
+        if (!description || scopes.length === 0) {
+          document.getElementById('tokenEditStatus').textContent = 'Enter a description and select at least one scope.';
+          return;
+        }
+
+        fetch(`/users/{{.User.Username}}/tokens/${currentTokenId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ description: description, scopes: scopes })
+        })
+        .then(async response => {
+          if (!response.ok) {
+            throw new Error('HTTP_' + response.status + ': ' + await response.text());
+          }
+          window.location.reload();
+        })
+        .catch(error => {
+          document.getElementById('tokenEditStatus').textContent = 'Unable to update token: ' + error.message;
         });
       }
 
